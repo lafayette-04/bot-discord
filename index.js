@@ -3,13 +3,15 @@ const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 const client = new Client({
 intents: [
 GatewayIntentBits.Guilds,
-GatewayIntentBits.GuildMessages
+GatewayIntentBits.GuildMessages,
+GatewayIntentBits.MessageContent
 ]
 });
 
 const CHANNEL_ID = "1496696155541864633";
 
 let sessionActive = false;
+let sessionRunning = false; // empêche double loop
 
 client.once('ready', async () => {
 console.log(`Connecté en tant que ${client.user.tag}`);
@@ -18,30 +20,36 @@ console.log(`Connecté en tant que ${client.user.tag}`);
 client.on('messageCreate', async (message) => {
 if (message.author.bot) return;
 
-const channel = await client.channels.fetch(CHANNEL_ID);
+const content = message.content.toLowerCase();
 
 // ▶️ START
-if (message.content === "!start") {
+if (content === "!start") {
 if (sessionActive) {
 return message.reply("❌ Une session est déjà en cours");
 }
 
-sessionActive = true;
-message.reply("✅ Session lancée");
+const channel = await client.channels.fetch(CHANNEL_ID).catch(() => null);
+if (!channel) return message.reply("❌ Channel introuvable");
 
+sessionActive = true;
+sessionRunning = true;
+
+message.reply("✅ Session lancée");
 loopSession(channel);
 }
 
 // ⏹ STOP
-if (message.content === "!stop") {
+if (content === "!stop") {
 sessionActive = false;
+sessionRunning = false;
 message.reply("🛑 Session arrêtée");
 }
 });
 
 async function loopSession(channel) {
-if (!sessionActive) return;
+if (!sessionActive || !sessionRunning) return;
 
+try {
 // 🟢 SESSION
 const embedStart = new EmbedBuilder()
 .setTitle("💎 SESSION ARTICLE")
@@ -51,10 +59,10 @@ const embedStart = new EmbedBuilder()
 
 await channel.send({ embeds: [embedStart] });
 
+// ⏱️ attendre 10 min
 setTimeout(async () => {
 if (!sessionActive) return;
 
-// 🔴 STOP
 const embedStop = new EmbedBuilder()
 .setTitle("🛑 SESSION STOP")
 .setDescription("Session terminée ❌")
@@ -63,12 +71,16 @@ const embedStop = new EmbedBuilder()
 
 await channel.send({ embeds: [embedStop] });
 
-// relance après 15 sec
+// 🔁 relance après 15 sec
 setTimeout(() => {
 if (sessionActive) loopSession(channel);
 }, 15000);
 
 }, 10 * 60 * 1000);
+
+} catch (err) {
+console.error("Erreur bot :", err);
+}
 }
 
 client.login(process.env.TOKEN);
