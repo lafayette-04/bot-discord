@@ -2,13 +2,12 @@ const { Client, GatewayIntentBits, EmbedBuilder, REST, Routes, SlashCommandBuild
 
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
+const GUILD_ID = "1496696155541864633";
 
 const CHANNEL_ID = "1496696155541864633";
 
 const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds
-  ]
+  intents: [GatewayIntentBits.Guilds]
 });
 
 let sessionActive = false;
@@ -20,22 +19,32 @@ function formatTime(seconds) {
   return `${m}:${s}`;
 }
 
-// 📌 créer les commandes
+// 🔥 COMMANDES SLASH
 const commands = [
   new SlashCommandBuilder().setName('start').setDescription('Lancer la session'),
   new SlashCommandBuilder().setName('stop').setDescription('Arrêter la session')
 ].map(cmd => cmd.toJSON());
 
-// 📌 enregistrer commandes
+// 🔥 RESET + INSTALL COMMANDES
 const rest = new REST({ version: '10' }).setToken(TOKEN);
 
 (async () => {
   try {
+    console.log("⏳ Reset commandes...");
+
+    // ❌ supprime anciennes globales
     await rest.put(
-      Routes.applicationGuildCommands(CLIENT_ID, "1496696155541864633"),
+      Routes.applicationCommands(CLIENT_ID),
+      { body: [] }
+    );
+
+    // ✅ ajoute sur TON serveur (instantané)
+    await rest.put(
+      Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
       { body: commands }
     );
-    console.log("✅ Commandes slash enregistrées");
+
+    console.log("✅ /start et /stop installés !");
   } catch (error) {
     console.error(error);
   }
@@ -50,6 +59,7 @@ client.on('interactionCreate', async interaction => {
 
   const channel = await client.channels.fetch(CHANNEL_ID);
 
+  // ▶️ START
   if (interaction.commandName === 'start') {
     if (sessionActive) {
       return interaction.reply({ content: "⚠️ Session déjà active", ephemeral: true });
@@ -61,6 +71,7 @@ client.on('interactionCreate', async interaction => {
     runLoop(channel);
   }
 
+  // ⏹ STOP
   if (interaction.commandName === 'stop') {
     sessionActive = false;
     sessionRunning = false;
@@ -92,6 +103,7 @@ async function runLoop(channel) {
 Pense à réagir aux liens des autres 🧡`
     });
 
+    // ⏱️ compteur
     while (timeLeft > 0 && sessionActive) {
       await new Promise(r => setTimeout(r, 1000));
       timeLeft--;
@@ -110,6 +122,7 @@ Pense à réagir aux liens des autres 🧡`
 
     if (!sessionActive) break;
 
+    // 🔴 STOP = nouveau message
     const embedStop = new EmbedBuilder()
       .setTitle("🛑 SESSION STOP")
       .setDescription("Session terminée ❌")
