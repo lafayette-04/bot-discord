@@ -1,14 +1,15 @@
-const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder, REST, Routes, SlashCommandBuilder } = require('discord.js');
+
+const TOKEN = process.env.TOKEN;
+const CLIENT_ID = process.env.CLIENT_ID;
+
+const CHANNEL_ID = "1496696155541864633";
 
 const client = new Client({
   intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent
+    GatewayIntentBits.Guilds
   ]
 });
-
-const CHANNEL_ID = "1496696155541864633";
 
 let sessionActive = false;
 let sessionRunning = false;
@@ -19,29 +20,52 @@ function formatTime(seconds) {
   return `${m}:${s}`;
 }
 
+// 📌 créer les commandes
+const commands = [
+  new SlashCommandBuilder().setName('start').setDescription('Lancer la session'),
+  new SlashCommandBuilder().setName('stop').setDescription('Arrêter la session')
+].map(cmd => cmd.toJSON());
+
+// 📌 enregistrer commandes
+const rest = new REST({ version: '10' }).setToken(TOKEN);
+
+(async () => {
+  try {
+    await rest.put(
+      Routes.applicationCommands(CLIENT_ID),
+      { body: commands }
+    );
+    console.log("✅ Commandes slash enregistrées");
+  } catch (error) {
+    console.error(error);
+  }
+})();
+
 client.once('ready', () => {
   console.log(`✅ Connecté en tant que ${client.user.tag}`);
 });
 
-client.on('messageCreate', async message => {
-  if (message.author.bot) return;
+client.on('interactionCreate', async interaction => {
+  if (!interaction.isChatInputCommand()) return;
 
-  if (message.content === '.start') {
-    if (sessionActive) return message.reply("⚠️ Session déjà active");
+  const channel = await client.channels.fetch(CHANNEL_ID);
 
-    const channel = client.channels.cache.get(CHANNEL_ID);
-    if (!channel) return message.reply("❌ Channel introuvable");
+  if (interaction.commandName === 'start') {
+    if (sessionActive) {
+      return interaction.reply({ content: "⚠️ Session déjà active", ephemeral: true });
+    }
 
     sessionActive = true;
-    message.reply("✅ Session lancée");
+    interaction.reply({ content: "✅ Session lancée", ephemeral: true });
 
     runLoop(channel);
   }
 
-  if (message.content === '.stop') {
+  if (interaction.commandName === 'stop') {
     sessionActive = false;
     sessionRunning = false;
-    message.reply("🛑 Session arrêtée");
+
+    interaction.reply({ content: "🛑 Session arrêtée", ephemeral: true });
   }
 });
 
@@ -59,7 +83,6 @@ async function runLoop(channel) {
       .setImage("https://i.ibb.co/6Jm36jvX/84-F407-FF-EB63-4-EB3-83-D9-553-A1-A1-B57-D6.png")
       .setColor("#ff7b00");
 
-    // 🔥 MESSAGE SESSION (reste affiché)
     let msg = await channel.send({
       embeds: [embedStart],
       content: `🤍 **Session article**  
@@ -69,7 +92,6 @@ async function runLoop(channel) {
 Pense à réagir aux liens des autres 🧡`
     });
 
-    // ⏱️ COMPTEUR (modifie UNIQUEMENT ce message)
     while (timeLeft > 0 && sessionActive) {
       await new Promise(r => setTimeout(r, 1000));
       timeLeft--;
@@ -88,7 +110,6 @@ Pense à réagir aux liens des autres 🧡`
 
     if (!sessionActive) break;
 
-    // 🔴 MESSAGE STOP (NOUVEAU MESSAGE)
     const embedStop = new EmbedBuilder()
       .setTitle("🛑 SESSION STOP")
       .setDescription("Session terminée ❌")
@@ -101,12 +122,10 @@ Pense à réagir aux liens des autres 🧡`
 ⏳ Prochaine dans 25 secondes`
     });
 
-    // ⏳ pause 25 sec
     await new Promise(r => setTimeout(r, 25000));
   }
 
   sessionRunning = false;
 }
 
-// 🔐 IMPORTANT
-client.login(process.env.TOKEN);
+client.login(TOKEN);
