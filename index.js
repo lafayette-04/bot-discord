@@ -13,7 +13,6 @@ const CHANNEL_ID = "1496696155541864633";
 let sessionActive = false;
 let sessionRunning = false;
 
-// format 01:00
 function formatTime(seconds) {
   const m = String(Math.floor(seconds / 60)).padStart(2, '0');
   const s = String(seconds % 60).padStart(2, '0');
@@ -21,13 +20,12 @@ function formatTime(seconds) {
 }
 
 client.once('ready', () => {
-  console.log(`Connecté en tant que ${client.user.tag}`);
+  console.log(`✅ Connecté en tant que ${client.user.tag}`);
 });
 
 client.on('messageCreate', async message => {
   if (message.author.bot) return;
 
-  // START
   if (message.content === '.start') {
     if (sessionActive) return message.reply("⚠️ Session déjà active");
 
@@ -38,7 +36,6 @@ client.on('messageCreate', async message => {
     runLoop(channel);
   }
 
-  // STOP
   if (message.content === '.stop') {
     sessionActive = false;
     sessionRunning = false;
@@ -46,14 +43,12 @@ client.on('messageCreate', async message => {
   }
 });
 
-// 🔁 BOUCLE
 async function runLoop(channel) {
   if (!sessionActive || sessionRunning) return;
   sessionRunning = true;
 
   while (sessionActive) {
 
-    // 🔥 SESSION START
     let timeLeft = 60;
 
     const embedStart = new EmbedBuilder()
@@ -71,7 +66,6 @@ async function runLoop(channel) {
 Pense à réagir aux liens des autres 🧡`
     });
 
-    // ⏱️ COMPTEUR
     while (timeLeft > 0 && sessionActive) {
       await new Promise(r => setTimeout(r, 1000));
       timeLeft--;
@@ -85,14 +79,11 @@ Pense à réagir aux liens des autres 🧡`
 
 Pense à réagir aux liens des autres 🧡`
         });
-      } catch (e) {
-        console.log("edit erreur ignorée");
-      }
+      } catch {}
     }
 
     if (!sessionActive) break;
 
-    // 🔴 STOP
     const embedStop = new EmbedBuilder()
       .setTitle("🛑 SESSION STOP")
       .setDescription("Session terminée ❌")
@@ -107,11 +98,11 @@ Pense à réagir aux liens des autres 🧡`
       });
     } catch {}
 
-    // ⏳ attente 25 sec
     await new Promise(r => setTimeout(r, 25000));
   }
 
   sessionRunning = false;
 }
 
-client.login("TON_TOKEN_ICI");
+// 🔐 TRÈS IMPORTANT
+client.login(process.env.TOKEN);
