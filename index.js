@@ -11,12 +11,11 @@ const client = new Client({
 const CHANNEL_ID = "1496696155541864633";
 
 // ⚙️ CONFIG
-const SESSION_TIME = 2 * 60 * 1000; // 2 minutes (test)
-const BREAK_TIME = 15 * 1000; // 15 secondes
+const SESSION_TIME = 2 * 60; // 2 minutes (en secondes)
+const BREAK_TIME = 15 * 1000;
 
 let sessionActive = false;
-let sessionRunning = false;
-let interval = null;
+let currentSession = null;
 
 client.once('ready', () => {
   console.log(`Connecté en tant que ${client.user.tag}`);
@@ -26,88 +25,97 @@ client.on('messageCreate', async (message) => {
   if (message.author.bot) return;
   if (message.channel.id !== CHANNEL_ID) return;
 
-  // ▶️ START
   if (message.content === "!start") {
 
-    if (sessionRunning) {
+    if (sessionActive) {
       return message.reply("❌ Session déjà en cours !");
     }
 
     sessionActive = true;
-    sessionRunning = true;
-
-    startSession(message.channel);
+    currentSession = startSession(message.channel);
   }
 
-  // 🛑 STOP
   if (message.content === "!stop") {
     sessionActive = false;
-    sessionRunning = false;
-    clearInterval(interval);
+
+    if (currentSession) {
+      clearInterval(currentSession.interval);
+      clearTimeout(currentSession.timeout);
+    }
+
     message.reply("🛑 Session arrêtée !");
   }
 });
 
+// ⏱️ FORMAT 09:59
+function formatTime(seconds) {
+  const m = String(Math.floor(seconds / 60)).padStart(2, '0');
+  const s = String(seconds % 60).padStart(2, '0');
+  return `${m}:${s}`;
+}
+
 // 🔁 SESSION
-async function startSession(channel) {
+function startSession(channel) {
 
-  if (!sessionActive) return;
+  let timeLeft = SESSION_TIME;
+  let session = {};
 
-  let timeLeft = SESSION_TIME / 1000;
+  (async () => {
 
-  const embedStart = new EmbedBuilder()
-    .setTitle("💎 SESSION ARTICLE")
-    .setDescription(`Poste ton article et like les autres ❤️\n⏱️ Temps restant : **${timeLeft}s**\n🚀 Sois actif !`)
-    .setImage("https://i.ibb.co/6Jm36jvX/84-F407-FF-EB63-4-EB3-83-D9-553-A1-A1-B57-D6.png")
-    .setColor("#ff7b00");
-
-  const msg = await channel.send({ embeds: [embedStart] });
-
-  // ⏱️ COMPTEUR LIVE
-  interval = setInterval(async () => {
-    if (!sessionActive) return clearInterval(interval);
-
-    timeLeft -= 5;
-
-    if (timeLeft <= 0) {
-      clearInterval(interval);
-      return;
-    }
-
-    const updatedEmbed = new EmbedBuilder()
+    const embed = new EmbedBuilder()
       .setTitle("💎 SESSION ARTICLE")
-      .setDescription(`Poste ton article et like les autres ❤️\n⏱️ Temps restant : **${timeLeft}s**\n🚀 Sois actif !`)
+      .setDescription(`Poste ton article et like les autres ❤️\n⏱️ Temps restant : **${formatTime(timeLeft)}**\n🚀 Sois actif !`)
       .setImage("https://i.ibb.co/6Jm36jvX/84-F407-FF-EB63-4-EB3-83-D9-553-A1-A1-B57-D6.png")
       .setColor("#ff7b00");
 
-    await msg.edit({ embeds: [updatedEmbed] });
+    const msg = await channel.send({ embeds: [embed] });
 
-  }, 5000); // update toutes les 5 sec
+    // ⏱️ COMPTEUR CHAQUE SECONDE
+    session.interval = setInterval(async () => {
 
-  // ⏱️ FIN SESSION
-  setTimeout(async () => {
-    if (!sessionActive) return;
+      if (!sessionActive) return clearInterval(session.interval);
 
-    clearInterval(interval);
+      timeLeft--;
 
-    const embedStop = new EmbedBuilder()
-      .setTitle("🛑 SESSION STOP")
-      .setDescription("Session terminée ❌")
-      .setImage("https://i.ibb.co/j9mGMjDm/AE44-C3-D4-5-F52-4-D45-AE27-409-BDF00-D67-B.png")
-      .setColor("#ff0000");
+      if (timeLeft <= 0) return;
 
-    await channel.send({ embeds: [embedStop] });
+      const updated = new EmbedBuilder()
+        .setTitle("💎 SESSION ARTICLE")
+        .setDescription(`Poste ton article et like les autres ❤️\n⏱️ Temps restant : **${formatTime(timeLeft)}**\n🚀 Sois actif !`)
+        .setImage("https://i.ibb.co/6Jm36jvX/84-F407-FF-EB63-4-EB3-83-D9-553-A1-A1-B57-D6.png")
+        .setColor("#ff7b00");
 
-    // 🔁 RELANCE
-    setTimeout(() => {
-      if (sessionActive) {
-        startSession(channel);
-      } else {
-        sessionRunning = false;
-      }
-    }, BREAK_TIME);
+      await msg.edit({ embeds: [updated] });
 
-  }, SESSION_TIME);
+    }, 1000);
+
+    // ⏱️ FIN
+    session.timeout = setTimeout(async () => {
+
+      if (!sessionActive) return;
+
+      clearInterval(session.interval);
+
+      const embedStop = new EmbedBuilder()
+        .setTitle("🛑 SESSION STOP")
+        .setDescription("Session terminée ❌")
+        .setImage("https://i.ibb.co/j9mGMjDm/AE44-C3-D4-5-F52-4-D45-AE27-409-BDF00-D67-B.png")
+        .setColor("#ff0000");
+
+      await channel.send({ embeds: [embedStop] });
+
+      // 🔁 RELANCE
+      setTimeout(() => {
+        if (sessionActive) {
+          currentSession = startSession(channel);
+        }
+      }, BREAK_TIME);
+
+    }, SESSION_TIME * 1000);
+
+  })();
+
+  return session;
 }
 
 client.login(process.env.TOKEN);
