@@ -2,9 +2,8 @@ const { Client, GatewayIntentBits, EmbedBuilder, REST, Routes, SlashCommandBuild
 
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
-const GUILD_ID = "1496696155541864633";
-
-const CHANNEL_ID = "1496696155541864633";
+const GUILD_ID = "1496696155541864633"; // ton serveur
+const CHANNEL_ID = "1496696155541864633"; // ton salon
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds]
@@ -13,40 +12,41 @@ const client = new Client({
 let sessionActive = false;
 let sessionRunning = false;
 
+// ⏱️ format 01:00
 function formatTime(seconds) {
   const m = String(Math.floor(seconds / 60)).padStart(2, '0');
   const s = String(seconds % 60).padStart(2, '0');
   return `${m}:${s}`;
 }
 
-// 🔥 COMMANDES SLASH
+// 🔥 COMMANDES
 const commands = [
   new SlashCommandBuilder().setName('start').setDescription('Lancer la session'),
   new SlashCommandBuilder().setName('stop').setDescription('Arrêter la session')
 ].map(cmd => cmd.toJSON());
 
-// 🔥 RESET + INSTALL COMMANDES
+// 🔥 RESET + INSTALL
 const rest = new REST({ version: '10' }).setToken(TOKEN);
 
 (async () => {
   try {
-    console.log("⏳ Reset commandes...");
+    console.log("🧹 Reset des commandes...");
 
-    // ❌ supprime anciennes globales
-    await rest.put(
-      Routes.applicationCommands(CLIENT_ID),
-      { body: [] }
-    );
+    // supprime global
+    await rest.put(Routes.applicationCommands(CLIENT_ID), { body: [] });
 
-    // ✅ ajoute sur TON serveur (instantané)
+    // supprime serveur
+    await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), { body: [] });
+
+    // ajoute TES commandes
     await rest.put(
       Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
       { body: commands }
     );
 
     console.log("✅ /start et /stop installés !");
-  } catch (error) {
-    console.error(error);
+  } catch (err) {
+    console.error(err);
   }
 })();
 
@@ -54,6 +54,7 @@ client.once('ready', () => {
   console.log(`✅ Connecté en tant que ${client.user.tag}`);
 });
 
+// 🎮 INTERACTIONS
 client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand()) return;
 
@@ -66,7 +67,7 @@ client.on('interactionCreate', async interaction => {
     }
 
     sessionActive = true;
-    interaction.reply({ content: "✅ Session lancée", ephemeral: true });
+    await interaction.reply({ content: "✅ Session lancée", ephemeral: true });
 
     runLoop(channel);
   }
@@ -76,10 +77,11 @@ client.on('interactionCreate', async interaction => {
     sessionActive = false;
     sessionRunning = false;
 
-    interaction.reply({ content: "🛑 Session arrêtée", ephemeral: true });
+    await interaction.reply({ content: "🛑 Session arrêtée", ephemeral: true });
   }
 });
 
+// 🔁 BOUCLE SESSION
 async function runLoop(channel) {
   if (!sessionActive || sessionRunning) return;
   sessionRunning = true;
@@ -94,6 +96,7 @@ async function runLoop(channel) {
       .setImage("https://i.ibb.co/6Jm36jvX/84-F407-FF-EB63-4-EB3-83-D9-553-A1-A1-B57-D6.png")
       .setColor("#ff7b00");
 
+    // 💎 SESSION
     let msg = await channel.send({
       embeds: [embedStart],
       content: `🤍 **Session article**  
@@ -122,7 +125,7 @@ Pense à réagir aux liens des autres 🧡`
 
     if (!sessionActive) break;
 
-    // 🔴 STOP = nouveau message
+    // 🛑 STOP
     const embedStop = new EmbedBuilder()
       .setTitle("🛑 SESSION STOP")
       .setDescription("Session terminée ❌")
