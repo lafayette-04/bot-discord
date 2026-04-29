@@ -27,14 +27,10 @@ client.on('messageCreate', async message => {
   if (message.author.bot) return;
 
   if (message.content === '.start') {
-    if (sessionActive) {
-      return message.reply("⚠️ Session déjà active");
-    }
+    if (sessionActive) return message.reply("⚠️ Session déjà active");
 
     const channel = client.channels.cache.get(CHANNEL_ID);
-    if (!channel) {
-      return message.reply("❌ Channel introuvable");
-    }
+    if (!channel) return message.reply("❌ Channel introuvable");
 
     sessionActive = true;
     message.reply("✅ Session lancée");
@@ -63,22 +59,17 @@ async function runLoop(channel) {
       .setImage("https://i.ibb.co/6Jm36jvX/84-F407-FF-EB63-4-EB3-83-D9-553-A1-A1-B57-D6.png")
       .setColor("#ff7b00");
 
-    let msg;
-    try {
-      msg = await channel.send({
-        embeds: [embedStart],
-        content: `🤍 **Session article**  
+    // 🔥 MESSAGE SESSION (reste affiché)
+    let msg = await channel.send({
+      embeds: [embedStart],
+      content: `🤍 **Session article**  
 🕒 Temps restant : **01:00**  
 🎉 ⭐️ autorisés  
 
 Pense à réagir aux liens des autres 🧡`
-      });
-    } catch (err) {
-      console.log("Erreur envoi message:", err);
-      break;
-    }
+    });
 
-    // ⏱️ COMPTE À REBOURS
+    // ⏱️ COMPTEUR (modifie UNIQUEMENT ce message)
     while (timeLeft > 0 && sessionActive) {
       await new Promise(r => setTimeout(r, 1000));
       timeLeft--;
@@ -92,29 +83,23 @@ Pense à réagir aux liens des autres 🧡`
 
 Pense à réagir aux liens des autres 🧡`
         });
-      } catch (err) {
-        console.log("Erreur edit:", err);
-      }
+      } catch {}
     }
 
     if (!sessionActive) break;
 
-    // 🔴 STOP (modifie le même message)
+    // 🔴 MESSAGE STOP (NOUVEAU MESSAGE)
     const embedStop = new EmbedBuilder()
       .setTitle("🛑 SESSION STOP")
       .setDescription("Session terminée ❌")
       .setImage("https://i.ibb.co/j9mGMjDm/AE44-C3-D4-5-F52-4-D45-AE27-409-BDF00-D67-B.png")
       .setColor("#ff0000");
 
-    try {
-      await msg.edit({
-        embeds: [embedStop],
-        content: `🛑 **Session terminée**  
+    await channel.send({
+      embeds: [embedStop],
+      content: `🛑 **Session terminée**  
 ⏳ Prochaine dans 25 secondes`
-      });
-    } catch (err) {
-      console.log("Erreur STOP:", err);
-    }
+    });
 
     // ⏳ pause 25 sec
     await new Promise(r => setTimeout(r, 25000));
@@ -123,5 +108,5 @@ Pense à réagir aux liens des autres 🧡`
   sessionRunning = false;
 }
 
-// 🔐 IMPORTANT (Railway)
+// 🔐 IMPORTANT
 client.login(process.env.TOKEN);
