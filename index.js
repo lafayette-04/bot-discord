@@ -40,7 +40,7 @@ client.once('ready', async () => {
     console.log("⚡ Installation commandes...");
 
     await rest.put(
-      Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
+      Routes.applicationGuildCommands(CLIENT_ID, "1496696155541864631")
       { body: commands }
     );
 
