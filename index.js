@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, EmbedBuilder, REST, Routes, SlashCommandBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder, REST, Routes } = require('discord.js');
 
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
@@ -20,13 +20,7 @@ function formatTime(seconds) {
   return `${m}:${s}`;
 }
 
-// 🔥 COMMANDES
-const commands = [
-  new SlashCommandBuilder().setName('start').setDescription('Lancer la session'),
-  new SlashCommandBuilder().setName('stop').setDescription('Arrêter la session')
-].map(cmd => cmd.toJSON());
-
-// 🔥 READY
+// 🔥 READY + COMMANDES
 client.once('ready', async () => {
   console.log(`✅ Connecté en tant que ${client.user.tag}`);
 
@@ -35,29 +29,42 @@ client.once('ready', async () => {
   try {
     console.log("🧹 Reset commandes...");
 
-    await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), { body: [] });
+    await rest.put(
+      Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
+      { body: [] }
+    );
 
     console.log("⚡ Installation commandes...");
 
     await rest.put(
-      Routes.applicationGuildCommands(CLIENT_ID, "1496696155541864631")
-      { body: commands }
+      Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
+      {
+        body: [
+          {
+            name: "start",
+            description: "Lancer la session"
+          },
+          {
+            name: "stop",
+            description: "Arrêter la session"
+          }
+        ]
+      }
     );
 
-    console.log("✅ /start et /stop prêts !");
+    console.log("✅ Commandes installées !");
   } catch (err) {
-    console.error(err);
+    console.error("❌ ERREUR COMMANDES :", err);
   }
 });
 
-// 🎮 INTERACTION
+// 🎮 INTERACTIONS
 client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand()) return;
 
   const channel = await client.channels.fetch(CHANNEL_ID).catch(() => null);
   if (!channel) return;
 
-  // ▶️ START
   if (interaction.commandName === 'start') {
     if (sessionActive) {
       return interaction.reply({ content: "⚠️ Session déjà active", ephemeral: true });
@@ -69,7 +76,6 @@ client.on('interactionCreate', async interaction => {
     runLoop(channel);
   }
 
-  // ⏹ STOP
   if (interaction.commandName === 'stop') {
     sessionActive = false;
     sessionRunning = false;
@@ -93,7 +99,6 @@ async function runLoop(channel) {
       .setImage("https://i.ibb.co/6Jm36jvX/84-F407-FF-EB63-4-EB3-83-D9-553-A1-A1-B57-D6.png")
       .setColor("#ff7b00");
 
-    // 💎 MESSAGE SESSION
     let msg = await channel.send({
       embeds: [embedStart],
       content: `🤍 **Session article**
@@ -103,7 +108,6 @@ async function runLoop(channel) {
 Pense à réagir aux liens des autres 🧡`
     });
 
-    // ⏱️ COMPTEUR
     while (timeLeft > 0 && sessionActive) {
       await new Promise(r => setTimeout(r, 1000));
       timeLeft--;
@@ -122,7 +126,6 @@ Pense à réagir aux liens des autres 🧡`
 
     if (!sessionActive) break;
 
-    // 🛑 STOP (NOUVEAU MESSAGE → ne remplace pas l’ancien)
     const embedStop = new EmbedBuilder()
       .setTitle("🛑 SESSION STOP")
       .setDescription("Session terminée ❌")
