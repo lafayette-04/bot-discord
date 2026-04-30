@@ -4,7 +4,7 @@ const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 const GUILD_ID = process.env.GUILD_ID;
 
-const CHANNEL_ID = "1496696155541864631";
+const CHANNEL_ID = "1496696155541864633";
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds]
