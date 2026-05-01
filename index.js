@@ -98,6 +98,7 @@ async function runLoop(channel) {
       content: `💎 **SESSION ARTICLE (1 minute)**
 ⏱️ Temps restant : **01:00**
 🎉 ⭐ et 🏆 autorisés
+
 Pense à réagir aux liens des autres 🧡`
     });
 
@@ -111,6 +112,7 @@ Pense à réagir aux liens des autres 🧡`
         content: `💎 **SESSION ARTICLE (1 minute)**
 ⏱️ Temps restant : **${formatTime(timeLeft)}**
 🎉 ⭐ et 🏆 autorisés
+
 Pense à réagir aux liens des autres 🧡`
       });
     }
@@ -164,6 +166,7 @@ Pense à réagir aux liens des autres 🧡`
 👥 **${total} participants**
 ⭐ ${starCount}
 🏆 ${trophyCount}
+
 ✅ ${valid} à jour
 ❌ ${invalid} pas à jour`,
       components: [getButtons()]
