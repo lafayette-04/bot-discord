@@ -32,7 +32,6 @@ client.once('clientReady', () => {
     return;
   }
 
-  // 🚀 Lancement automatique
   setTimeout(() => {
     sessionActive = true;
     console.log("🚀 Session auto lancée");
@@ -49,7 +48,7 @@ async function runLoop(channel) {
 
     let timeLeft = 60;
 
-    // ✅ MESSAGE SANS EMBED (PLEIN ÉCRAN)
+    // ✅ MESSAGE SANS EMBED
     let msg = await channel.send({
       content: `💎 **SESSION ARTICLE**
 
@@ -58,8 +57,11 @@ async function runLoop(channel) {
 
 Pense à réagir aux liens des autres 🧡
 
-https://i.ibb.co/6Jm36jvX/84-F407-FF-EB63-4-EB3-83-D9-553-A1-A1-B57-D6.png`
+<https://i.ibb.co/6Jm36jvX/84-F407-FF-EB63-4-EB3-83-D9-553-A1-A1-B57-D6.png>`
     });
+
+    // 🔥 enlève embed auto (sécurité)
+    msg.suppressEmbeds(true);
 
     // ⏱️ COMPTEUR
     while (timeLeft > 0 && sessionActive) {
@@ -75,21 +77,25 @@ https://i.ibb.co/6Jm36jvX/84-F407-FF-EB63-4-EB3-83-D9-553-A1-A1-B57-D6.png`
 
 Pense à réagir aux liens des autres 🧡
 
-https://i.ibb.co/6Jm36jvX/84-F407-FF-EB63-4-EB3-83-D9-553-A1-A1-B57-D6.png`
+<https://i.ibb.co/6Jm36jvX/84-F407-FF-EB63-4-EB3-83-D9-553-A1-A1-B57-D6.png>`
         });
+
+        msg.suppressEmbeds(true);
       } catch {}
     }
 
     if (!sessionActive) break;
 
-    // 🛑 STOP (SANS EMBED AUSSI)
-    await channel.send({
+    // 🛑 STOP
+    let stopMsg = await channel.send({
       content: `🛑 **SESSION TERMINÉE**
 
 ⏳ Prochaine dans 25 secondes
 
-https://i.ibb.co/j9mGMjDm/AE44-C3-D4-5-F52-4-D45-AE27-409-BDF00-D67-B.png`
+<https://i.ibb.co/j9mGMjDm/AE44-C3-D4-5-F52-4-D45-AE27-409-BDF00-D67-B.png>`
     });
+
+    stopMsg.suppressEmbeds(true);
 
     await new Promise(r => setTimeout(r, 25000));
   }
