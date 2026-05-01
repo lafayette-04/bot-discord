@@ -1,7 +1,14 @@
-const { Client, GatewayIntentBits } = require('discord.js');
+const {
+  Client,
+  GatewayIntentBits,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle
+} = require('discord.js');
 
 const TOKEN = process.env.TOKEN;
 const CHANNEL_ID = "1496696155541864633";
+const OWNER_ID = "TON_ID_DISCORD";
 
 const client = new Client({
   intents: [
@@ -14,9 +21,7 @@ const client = new Client({
 
 let sessionActive = false;
 let sessionRunning = false;
-
-// 📊 DATA
-let participants = new Map(); // userId -> messageId
+let participants = new Map();
 
 // ⏱️ format
 function formatTime(seconds) {
@@ -25,27 +30,85 @@ function formatTime(seconds) {
   return `${m}:${s}`;
 }
 
+// ⏰ CHECK HORAIRE
+function isAllowedTime() {
+  const now = new Date();
+  const hour = now.getHours();
+
+  // autorisé entre 09h → 01h
+  return (hour >= 9 || hour < 1);
+}
+
 // 🔥 READY
-client.once('clientReady', () => {
+client.once('clientReady', async () => {
   console.log(`✅ Connecté en tant que ${client.user.tag}`);
 
   const channel = client.channels.cache.get(CHANNEL_ID);
   if (!channel) return console.log("❌ Channel introuvable");
 
-  setTimeout(() => {
-    sessionActive = true;
-    runLoop(channel);
-  }, 3000);
+  // 🔘 Boutons admin
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('start')
+      .setLabel('▶️ START')
+      .setStyle(ButtonStyle.Success),
+
+    new ButtonBuilder()
+      .setCustomId('stop')
+      .setLabel('⏹ STOP')
+      .setStyle(ButtonStyle.Danger)
+  );
+
+  await channel.send({
+    content: "🎛️ **Contrôle des sessions (admin)**",
+    components: [row]
+  });
+
+  // 🔁 Vérifie toutes les minutes
+  setInterval(() => {
+    const allowed = isAllowedTime();
+
+    if (allowed && !sessionActive) {
+      sessionActive = true;
+      runLoop(channel);
+      console.log("🟢 Auto START (09h → 01h)");
+    }
+
+    if (!allowed && sessionActive) {
+      sessionActive = false;
+      console.log("🔴 Auto STOP (hors horaires)");
+    }
+
+  }, 60000);
 });
 
-// 📩 DETECTE LIENS + ANTI SPAM
+// 🔘 BOUTONS
+client.on('interactionCreate', async (interaction) => {
+  if (!interaction.isButton()) return;
+
+  if (interaction.user.id !== OWNER_ID) {
+    return interaction.reply({ content: "❌ Pas autorisé", ephemeral: true });
+  }
+
+  if (interaction.customId === "stop") {
+    sessionActive = false;
+    return interaction.reply({ content: "🛑 Sessions arrêtées", ephemeral: true });
+  }
+
+  if (interaction.customId === "start") {
+    if (!sessionActive) {
+      sessionActive = true;
+      runLoop(interaction.channel);
+    }
+    return interaction.reply({ content: "🚀 Sessions relancées", ephemeral: true });
+  }
+});
+
+// 📦 LIENS
 client.on('messageCreate', async (message) => {
-  if (!sessionActive) return;
-  if (message.author.bot) return;
+  if (message.author.bot || !sessionActive) return;
 
   if (message.content.includes("http")) {
-
-    // ❌ 1 lien max
     if (participants.has(message.author.id)) {
       try { await message.delete(); } catch {}
       return;
@@ -55,15 +118,13 @@ client.on('messageCreate', async (message) => {
   }
 });
 
-// 🚫 EMPÊCHE RÉACTION SUR SON PROPRE LIEN
+// 🚫 REACT SUR SON PROPRE MESSAGE
 client.on('messageReactionAdd', async (reaction, user) => {
   if (user.bot) return;
 
   try {
-    const msg = reaction.message;
-
     for (let [userId, messageId] of participants) {
-      if (msg.id === messageId && user.id === userId) {
+      if (reaction.message.id === messageId && user.id === userId) {
         await reaction.users.remove(user.id);
       }
     }
@@ -75,13 +136,12 @@ async function runLoop(channel) {
   if (!sessionActive || sessionRunning) return;
   sessionRunning = true;
 
-  while (sessionActive) {
+  while (sessionActive && isAllowedTime()) {
 
     let timeLeft = 60;
 
-    // 🔥 START
     let msg = await channel.send({
-      content: `💎 **SESSION ARTICLE** (1 minute)
+      content: `💎 **SESSION ARTICLE (1 minute)**
 
 🕒 Temps restant : **01:00**
 🎉 ⭐ et 🏆 autorisés
@@ -92,14 +152,13 @@ Pense à réagir aux liens des autres 🧡`,
       }]
     });
 
-    // ⏱️ TIMER
-    while (timeLeft > 0) {
+    while (timeLeft > 0 && sessionActive) {
       await new Promise(r => setTimeout(r, 1000));
       timeLeft--;
 
       try {
         await msg.edit({
-          content: `💎 **SESSION ARTICLE** (1 minute)
+          content: `💎 **SESSION ARTICLE (1 minute)**
 
 🕒 Temps restant : **${formatTime(timeLeft)}**
 🎉 ⭐ et 🏆 autorisés
@@ -123,19 +182,13 @@ Pense à réagir aux liens des autres 🧡`
         let hasCross = false;
 
         for (const reaction of m.reactions.cache.values()) {
-
           const users = await reaction.users.fetch();
 
           if (reaction.emoji.name === "✅" && users.size > 0) hasCheck = true;
           if (reaction.emoji.name === "❌" && users.size > 0) hasCross = true;
 
-          if (reaction.emoji.name === "⭐") {
-            starCount += users.size;
-          }
-
-          if (reaction.emoji.name === "🏆") {
-            trophyCount += users.size;
-          }
+          if (reaction.emoji.name === "⭐") starCount += users.size;
+          if (reaction.emoji.name === "🏆") trophyCount += users.size;
         }
 
         if (hasCheck && !hasCross) valid++;
@@ -146,7 +199,6 @@ Pense à réagir aux liens des autres 🧡`
 
     let total = participants.size;
 
-    // 🛑 STOP (CORRIGÉ)
     let stopMsg = await channel.send({
       content: `🛑 **SESSION TERMINÉE**
 
@@ -161,10 +213,9 @@ Pense à réagir aux liens des autres 🧡`
       }]
     });
 
-    // ⏱️ NEXT TIMER
     let next = 30;
 
-    while (next > 0) {
+    while (next > 0 && sessionActive) {
       await new Promise(r => setTimeout(r, 1000));
       next--;
 
@@ -184,7 +235,6 @@ Pense à réagir aux liens des autres 🧡`
       } catch {}
     }
 
-    // 🔄 RESET
     participants.clear();
   }
 
