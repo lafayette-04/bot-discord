@@ -1,9 +1,9 @@
-const {
-  Client,
-  GatewayIntentBits,
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle
+const { 
+  Client, 
+  GatewayIntentBits, 
+  ActionRowBuilder, 
+  ButtonBuilder, 
+  ButtonStyle 
 } = require('discord.js');
 
 const TOKEN = process.env.TOKEN;
@@ -14,29 +14,33 @@ const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildMessageReactions
+    GatewayIntentBits.MessageContent
   ]
 });
 
 let sessionActive = false;
 let sessionRunning = false;
-let participants = new Map();
+let controlMessage = null;
 
-// ⏱️ format
-function formatTime(seconds) {
-  const m = String(Math.floor(seconds / 60)).padStart(2, '0');
-  const s = String(seconds % 60).padStart(2, '0');
+// ⏱️ format temps
+function formatTime(sec) {
+  const m = String(Math.floor(sec / 60)).padStart(2, "0");
+  const s = String(sec % 60).padStart(2, "0");
   return `${m}:${s}`;
 }
 
-// ⏰ CHECK HORAIRE
-function isAllowedTime() {
-  const now = new Date();
-  const hour = now.getHours();
-
-  // autorisé entre 09h → 01h
-  return (hour >= 9 || hour < 1);
+// 🎛️ boutons
+function getButtons() {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId("start")
+      .setLabel("START")
+      .setStyle(ButtonStyle.Success),
+    new ButtonBuilder()
+      .setCustomId("stop")
+      .setLabel("STOP")
+      .setStyle(ButtonStyle.Danger)
+  );
 }
 
 // 🔥 READY
@@ -46,97 +50,52 @@ client.once('clientReady', async () => {
   const channel = client.channels.cache.get(CHANNEL_ID);
   if (!channel) return console.log("❌ Channel introuvable");
 
-  // 🔘 Boutons admin
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId('start')
-      .setLabel('▶️ START')
-      .setStyle(ButtonStyle.Success),
+  // supprimer anciens boutons
+  const messages = await channel.messages.fetch({ limit: 20 });
+  const old = messages.find(m => m.author.id === client.user.id && m.components.length > 0);
+  if (old) await old.delete().catch(() => {});
 
-    new ButtonBuilder()
-      .setCustomId('stop')
-      .setLabel('⏹ STOP')
-      .setStyle(ButtonStyle.Danger)
-  );
-
-  await channel.send({
+  // envoyer 1 seul bouton
+  controlMessage = await channel.send({
     content: "🎛️ **Contrôle des sessions (admin)**",
-    components: [row]
+    components: [getButtons()]
   });
-
-  // 🔁 Vérifie toutes les minutes
-  setInterval(() => {
-    const allowed = isAllowedTime();
-
-    if (allowed && !sessionActive) {
-      sessionActive = true;
-      runLoop(channel);
-      console.log("🟢 Auto START (09h → 01h)");
-    }
-
-    if (!allowed && sessionActive) {
-      sessionActive = false;
-      console.log("🔴 Auto STOP (hors horaires)");
-    }
-
-  }, 60000);
 });
 
-// 🔘 BOUTONS
-client.on('interactionCreate', async (interaction) => {
+
+// 🎛️ interaction boutons
+client.on("interactionCreate", async interaction => {
   if (!interaction.isButton()) return;
 
   if (interaction.user.id !== OWNER_ID) {
     return interaction.reply({ content: "❌ Pas autorisé", ephemeral: true });
   }
 
-  if (interaction.customId === "stop") {
-    sessionActive = false;
-    return interaction.reply({ content: "🛑 Sessions arrêtées", ephemeral: true });
-  }
-
   if (interaction.customId === "start") {
     if (!sessionActive) {
       sessionActive = true;
-      runLoop(interaction.channel);
+      interaction.reply({ content: "🚀 Sessions lancées", ephemeral: true });
+
+      const channel = client.channels.cache.get(CHANNEL_ID);
+      runLoop(channel);
+    } else {
+      interaction.reply({ content: "⚠️ Déjà actif", ephemeral: true });
     }
-    return interaction.reply({ content: "🚀 Sessions relancées", ephemeral: true });
+  }
+
+  if (interaction.customId === "stop") {
+    sessionActive = false;
+    interaction.reply({ content: "🛑 Sessions arrêtées", ephemeral: true });
   }
 });
 
-// 📦 LIENS
-client.on('messageCreate', async (message) => {
-  if (message.author.bot || !sessionActive) return;
-
-  if (message.content.includes("http")) {
-    if (participants.has(message.author.id)) {
-      try { await message.delete(); } catch {}
-      return;
-    }
-
-    participants.set(message.author.id, message.id);
-  }
-});
-
-// 🚫 REACT SUR SON PROPRE MESSAGE
-client.on('messageReactionAdd', async (reaction, user) => {
-  if (user.bot) return;
-
-  try {
-    for (let [userId, messageId] of participants) {
-      if (reaction.message.id === messageId && user.id === userId) {
-        await reaction.users.remove(user.id);
-      }
-    }
-  } catch {}
-});
 
 // 🔁 LOOP
 async function runLoop(channel) {
-  if (!sessionActive || sessionRunning) return;
+  if (sessionRunning) return;
   sessionRunning = true;
 
-  while (sessionActive && isAllowedTime()) {
+  while (sessionActive) {
 
     let timeLeft = 60;
 
@@ -152,6 +111,7 @@ Pense à réagir aux liens des autres 🧡`,
       }]
     });
 
+    // ⏱️ compteur session
     while (timeLeft > 0 && sessionActive) {
       await new Promise(r => setTimeout(r, 1000));
       timeLeft--;
@@ -163,57 +123,27 @@ Pense à réagir aux liens des autres 🧡`,
 🕒 Temps restant : **${formatTime(timeLeft)}**
 🎉 ⭐ et 🏆 autorisés
 
-Pense à réagir aux liens des autres 🧡`
+Pense à réagir aux liens des autres 🧡`,
+          files: [{
+            attachment: "https://i.ibb.co/6Jm36jvX/84-F407-FF-EB63-4-EB3-83-D9-553-A1-A1-B57-D6.png"
+          }]
         });
       } catch {}
     }
 
-    // 📊 ANALYSE
-    let valid = 0;
-    let invalid = 0;
-    let starCount = 0;
-    let trophyCount = 0;
+    if (!sessionActive) break;
 
-    for (let [userId, messageId] of participants) {
-      try {
-        const m = await channel.messages.fetch(messageId);
-
-        let hasCheck = false;
-        let hasCross = false;
-
-        for (const reaction of m.reactions.cache.values()) {
-          const users = await reaction.users.fetch();
-
-          if (reaction.emoji.name === "✅" && users.size > 0) hasCheck = true;
-          if (reaction.emoji.name === "❌" && users.size > 0) hasCross = true;
-
-          if (reaction.emoji.name === "⭐") starCount += users.size;
-          if (reaction.emoji.name === "🏆") trophyCount += users.size;
-        }
-
-        if (hasCheck && !hasCross) valid++;
-        else invalid++;
-
-      } catch {}
-    }
-
-    let total = participants.size;
+    // 🛑 STOP + timer prochain
+    let next = 30;
 
     let stopMsg = await channel.send({
       content: `🛑 **SESSION TERMINÉE**
 
-👥 ${total} participants
-⭐ ${starCount}
-🏆 ${trophyCount}
-
-✅ ${valid} à jour
-❌ ${invalid} pas à jour`,
+⏳ Prochaine session dans : **00:30**`,
       files: [{
         attachment: "https://i.ibb.co/j9mGMjDm/AE44-C3-D4-5-F52-4-D45-AE27-409-BDF00-D67-B.png"
       }]
     });
-
-    let next = 30;
 
     while (next > 0 && sessionActive) {
       await new Promise(r => setTimeout(r, 1000));
@@ -223,22 +153,44 @@ Pense à réagir aux liens des autres 🧡`
         await stopMsg.edit({
           content: `🛑 **SESSION TERMINÉE**
 
-👥 ${total} participants
-⭐ ${starCount}
-🏆 ${trophyCount}
-
-✅ ${valid} à jour
-❌ ${invalid} pas à jour
-
-⏳ Prochaine session dans : ${formatTime(next)}`
+⏳ Prochaine session dans : **${formatTime(next)}**`,
+          files: [{
+            attachment: "https://i.ibb.co/j9mGMjDm/AE44-C3-D4-5-F52-4-D45-AE27-409-BDF00-D67-B.png"
+          }]
         });
       } catch {}
     }
-
-    participants.clear();
   }
 
   sessionRunning = false;
 }
 
+
+// ⏰ HORAIRES AUTO (H24)
+setInterval(() => {
+  const now = new Date();
+  const h = now.getHours();
+  const m = now.getMinutes();
+
+  // START 09:00
+  if (h === 9 && m === 0) {
+    if (!sessionActive) {
+      console.log("⏰ AUTO START 09:00");
+      sessionActive = true;
+
+      const channel = client.channels.cache.get(CHANNEL_ID);
+      if (channel) runLoop(channel);
+    }
+  }
+
+  // STOP 01:00
+  if (h === 1 && m === 0) {
+    console.log("⏰ AUTO STOP 01:00");
+    sessionActive = false;
+  }
+
+}, 60000);
+
+
+// 🚀 LOGIN
 client.login(TOKEN);
