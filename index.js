@@ -26,7 +26,7 @@ let sessionMessages = [];
 let trophyUser = null;
 let trophyExpire = 0;
 
-// ⏱️ format
+// ⏱️ temps
 function formatTime(sec) {
   const m = String(Math.floor(sec / 60)).padStart(2, "0");
   const s = String(sec % 60).padStart(2, "0");
@@ -41,7 +41,7 @@ function getButtons() {
   );
 }
 
-// 🎯 boutons
+// 🎯 interaction
 client.on("interactionCreate", async interaction => {
   if (!interaction.isButton()) return;
 
@@ -94,7 +94,6 @@ async function runLoop(channel) {
     sessionMessages = [];
     let timeLeft = 60;
 
-    // IMAGE START
     await channel.send({
       files: ["https://i.ibb.co/6Jm36jvX/84-F407-FF-EB63-4-EB3-83-D9-553-A1-A1-B57-D6.png"]
     });
@@ -122,7 +121,7 @@ Pense à réagir aux liens des autres 🧡`
 
     await new Promise(r => setTimeout(r, 1500));
 
-    // 📊 ANALYSE FIX
+    // 🔥 ANALYSE FIX
     let participants = new Set();
     let reactedUsers = new Set();
     let starUsers = new Set();
@@ -130,19 +129,23 @@ Pense à réagir aux liens des autres 🧡`
     for (const m of sessionMessages) {
       participants.add(m.author.id);
 
+      // ⚠️ FORCE FETCH (IMPORTANT)
+      await m.fetch();
+      await m.reactions.fetch();
+
       for (const r of m.reactions.cache.values()) {
         const users = await r.users.fetch();
 
         users.forEach(u => {
           if (u.bot) return;
 
-          // ⭐ sur son propre lien
+          // ⭐ = exclu
           if (u.id === m.author.id && r.emoji.name === "⭐") {
             starUsers.add(u.id);
           }
 
-          // ✅ réaction sur autre lien
-          if (u.id !== m.author.id) {
+          // ✅ réaction sur lien (MEME SI 1 SEUL USER)
+          if (u.id !== m.author.id || participants.size === 1) {
             reactedUsers.add(u.id);
           }
         });
@@ -160,12 +163,14 @@ Pense à réagir aux liens des autres 🧡`
       else invalid++;
     });
 
-    // 🏆 GAGNANT
+    // 🏆 gagnant
     let winner = null;
     let max = 0;
 
     for (const m of sessionMessages) {
       let count = 0;
+
+      await m.reactions.fetch();
 
       for (const r of m.reactions.cache.values()) {
         const users = await r.users.fetch();
@@ -183,12 +188,10 @@ Pense à réagir aux liens des autres 🧡`
       trophyExpire = Date.now() + 24 * 60 * 60 * 1000;
     }
 
-    // IMAGE STOP
     await channel.send({
       files: ["https://i.ibb.co/j9mGMjDm/AE44-C3-D4-5-F52-4-D45-AE27-409-BDF00-D67-B.png"]
     });
 
-    // RESULTAT
     await channel.send({
       content: `🛑 **SESSION TERMINÉE**
 👥 **${total} participants**
