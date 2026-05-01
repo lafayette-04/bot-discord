@@ -21,45 +21,23 @@ function formatTime(seconds) {
   return `${m}:${s}`;
 }
 
-// ✅ READY (version propre)
-client.once('clientReady', () => {
+// 🔥 READY + AUTO START
+client.once('ready', () => {
   console.log(`✅ Connecté en tant que ${client.user.tag}`);
-});
 
-// 💬 COMMANDES TEXTE
-client.on('messageCreate', async message => {
-  console.log("📩 Message reçu :", message.content); // DEBUG
+  const channel = client.channels.cache.get(CHANNEL_ID);
 
-  if (message.author.bot) return;
+  if (!channel) {
+    console.log("❌ Channel introuvable");
+    return;
+  }
 
-  // ⚠️ IMPORTANT : trim + lowercase
-  const content = message.content.trim().toLowerCase();
-
-  // ▶️ START
-  if (content === ".start") {
-
-    // 🔒 bloque si mauvais salon
-    if (message.channel.id !== CHANNEL_ID) {
-      return message.reply("❌ Utilise cette commande dans le bon salon");
-    }
-
-    if (sessionActive) {
-      return message.reply("⚠️ Session déjà active");
-    }
-
+  // 🚀 Lancement automatique
+  setTimeout(() => {
     sessionActive = true;
-    message.reply("✅ Session lancée");
-
-    runLoop(message.channel);
-  }
-
-  // ⏹ STOP
-  if (content === ".stop") {
-    sessionActive = false;
-    sessionRunning = false;
-
-    message.reply("🛑 Session arrêtée");
-  }
+    console.log("🚀 Session auto lancée");
+    runLoop(channel);
+  }, 3000);
 });
 
 // 🔁 LOOP
@@ -124,7 +102,5 @@ Pense à réagir aux liens des autres 🧡`
   sessionRunning = false;
 }
 
-// 🚀 LOGIN + gestion erreur
-client.login(TOKEN).catch(err => {
-  console.error("❌ ERREUR TOKEN :", err);
-});
+// 🚀 LOGIN
+client.login(TOKEN);
