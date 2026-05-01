@@ -1,13 +1,11 @@
-const { Client, GatewayIntentBits, EmbedBuilder, REST, Routes } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 
 const TOKEN = process.env.TOKEN;
-const CLIENT_ID = process.env.CLIENT_ID;
-const GUILD_ID = process.env.GUILD_ID;
 
 const CHANNEL_ID = "1496696155541864633";
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds]
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent]
 });
 
 let sessionActive = false;
@@ -20,67 +18,33 @@ function formatTime(seconds) {
   return `${m}:${s}`;
 }
 
-// 🔥 READY + COMMANDES
-client.once('ready', async () => {
+// 🔥 READY
+client.once('ready', () => {
   console.log(`✅ Connecté en tant que ${client.user.tag}`);
-
-  const rest = new REST({ version: '10' }).setToken(TOKEN);
-
-  try {
-    console.log("🧹 Reset commandes...");
-
-    await rest.put(
-      Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
-      { body: [] }
-    );
-
-    console.log("⚡ Installation commandes...");
-
-    await rest.put(
-      Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
-      {
-        body: [
-          {
-            name: "start",
-            description: "Lancer la session"
-          },
-          {
-            name: "stop",
-            description: "Arrêter la session"
-          }
-        ]
-      }
-    );
-
-    console.log("✅ Commandes installées !");
-  } catch (err) {
-    console.error("❌ ERREUR COMMANDES :", err);
-  }
 });
 
-// 🎮 INTERACTIONS
-client.on('interactionCreate', async interaction => {
-  if (!interaction.isChatInputCommand()) return;
+// 💬 COMMANDES TEXTE (.start / .stop)
+client.on('messageCreate', async message => {
+  if (message.author.bot) return;
 
-  const channel = await client.channels.fetch(CHANNEL_ID).catch(() => null);
-  if (!channel) return;
-
-  if (interaction.commandName === 'start') {
+  // ▶️ START
+  if (message.content === ".start") {
     if (sessionActive) {
-      return interaction.reply({ content: "⚠️ Session déjà active", ephemeral: true });
+      return message.reply("⚠️ Session déjà active");
     }
 
     sessionActive = true;
-    await interaction.reply({ content: "✅ Session lancée", ephemeral: true });
+    message.reply("✅ Session lancée");
 
-    runLoop(channel);
+    runLoop(message.channel);
   }
 
-  if (interaction.commandName === 'stop') {
+  // ⏹ STOP
+  if (message.content === ".stop") {
     sessionActive = false;
     sessionRunning = false;
 
-    await interaction.reply({ content: "🛑 Session arrêtée", ephemeral: true });
+    message.reply("🛑 Session arrêtée");
   }
 });
 
@@ -108,6 +72,7 @@ async function runLoop(channel) {
 Pense à réagir aux liens des autres 🧡`
     });
 
+    // ⏱️ COMPTEUR
     while (timeLeft > 0 && sessionActive) {
       await new Promise(r => setTimeout(r, 1000));
       timeLeft--;
@@ -126,6 +91,7 @@ Pense à réagir aux liens des autres 🧡`
 
     if (!sessionActive) break;
 
+    // 🛑 STOP
     const embedStop = new EmbedBuilder()
       .setTitle("🛑 SESSION STOP")
       .setDescription("Session terminée ❌")
