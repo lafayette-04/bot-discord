@@ -32,23 +32,16 @@ function formatTime(sec) {
 // 🎛️ boutons
 function getButtons() {
   return new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId("start")
-      .setLabel("START")
-      .setStyle(ButtonStyle.Success),
-    new ButtonBuilder()
-      .setCustomId("stop")
-      .setLabel("STOP")
-      .setStyle(ButtonStyle.Danger)
+    new ButtonBuilder().setCustomId("start").setLabel("START").setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId("stop").setLabel("STOP").setStyle(ButtonStyle.Danger)
   );
 }
 
-// 🔥 READY
+// READY
 client.once('clientReady', async () => {
-  console.log(`✅ Connecté en tant que ${client.user.tag}`);
+  console.log(`✅ ${client.user.tag}`);
 
   const channel = client.channels.cache.get(CHANNEL_ID);
-  if (!channel) return;
 
   await channel.send({
     content: "🎛️ **Contrôle des sessions (admin)**",
@@ -56,8 +49,7 @@ client.once('clientReady', async () => {
   });
 });
 
-
-// 📥 CAPTURE LIENS
+// 📥 capture des liens
 client.on("messageCreate", message => {
   if (!sessionActive) return;
   if (message.channel.id !== CHANNEL_ID) return;
@@ -68,8 +60,7 @@ client.on("messageCreate", message => {
   }
 });
 
-
-// 🎛️ BOUTONS
+// 🎛️ boutons admin
 client.on("interactionCreate", async interaction => {
   if (!interaction.isButton()) return;
 
@@ -80,11 +71,9 @@ client.on("interactionCreate", async interaction => {
   const channel = client.channels.cache.get(CHANNEL_ID);
 
   if (interaction.customId === "start") {
-    if (!sessionActive) {
-      sessionActive = true;
-      interaction.reply({ content: "🚀 Sessions lancées", ephemeral: true });
-      runLoop(channel);
-    }
+    sessionActive = true;
+    interaction.reply({ content: "🚀 Sessions lancées", ephemeral: true });
+    runLoop(channel);
   }
 
   if (interaction.customId === "stop") {
@@ -93,7 +82,6 @@ client.on("interactionCreate", async interaction => {
   }
 });
 
-
 // 🔁 LOOP
 async function runLoop(channel) {
   if (sessionRunning) return;
@@ -101,131 +89,139 @@ async function runLoop(channel) {
 
   while (sessionActive) {
 
-    sessionMessages = []; // reset
+    sessionMessages = [];
 
     let timeLeft = 60;
 
-    let msg = await channel.send({
-      content: `💎 **SESSION ARTICLE (1 minute)**
-
-🕒 Temps restant : **01:00**
-🎉 ⭐ et 🏆 autorisés
-
-Pense à réagir aux liens des autres 🧡`,
+    // 📸 image
+    await channel.send({
       files: [{
         attachment: "https://i.ibb.co/6Jm36jvX/84-F407-FF-EB63-4-EB3-83-D9-553-A1-A1-B57-D6.png"
       }]
     });
 
-    // ⏱️ compteur (SANS image pour éviter clignotement)
+    // 📝 texte
+    let msg = await channel.send({
+      content: `💎 **SESSION ARTICLE (1 minute)**
+
+🕒 Temps restant : **01:00**
+🎉 Réagis aux AUTRES liens pour être validé
+
+🧡 Sois actif !`
+    });
+
+    // ⏱️ timer
     while (timeLeft > 0 && sessionActive) {
       await new Promise(r => setTimeout(r, 1000));
       timeLeft--;
 
-      try {
-        await msg.edit({
-          content: `💎 **SESSION ARTICLE (1 minute)**
+      await msg.edit({
+        content: `💎 **SESSION ARTICLE (1 minute)**
 
 🕒 Temps restant : **${formatTime(timeLeft)}**
-🎉 ⭐ et 🏆 autorisés
+🎉 Réagis aux AUTRES liens pour être validé
 
-Pense à réagir aux liens des autres 🧡`
-        });
-      } catch {}
+🧡 Sois actif !`
+      });
     }
 
     if (!sessionActive) break;
 
-    // ⏳ laisse le temps aux réactions
     await new Promise(r => setTimeout(r, 3000));
 
-    // 📊 CALCUL
-    let users = new Set();
-    let starCount = 0;
-    let trophyCount = 0;
-    let valid = 0;
-    let invalid = 0;
+    // 📊 CALCUL CORRECT
+    let participants = new Set();
+    let reactedUsers = new Set();
 
     for (const msg of sessionMessages) {
-      users.add(msg.author.id);
+      participants.add(msg.author.id);
 
-      const reactions = msg.reactions.cache;
+      for (const reaction of msg.reactions.cache.values()) {
+        const users = await reaction.users.fetch();
 
-      if (reactions.get("⭐")) starCount++;
-      if (reactions.get("🏆")) trophyCount++;
-      if (reactions.get("✅")) valid++;
-      if (reactions.get("❌")) invalid++;
+        users.forEach(user => {
+          if (user.bot) return;
+
+          // ❗ doit réagir sur un AUTRE message
+          if (user.id !== msg.author.id) {
+            reactedUsers.add(user.id);
+          }
+        });
+      }
     }
 
-    let total = users.size;
+    let validUsers = new Set();
+    let invalidUsers = new Set();
 
-    // 🛑 STOP + STATS
+    participants.forEach(id => {
+      if (reactedUsers.has(id)) {
+        validUsers.add(id);
+      } else {
+        invalidUsers.add(id);
+      }
+    });
+
+    let total = participants.size;
+    let valid = validUsers.size;
+    let invalid = invalidUsers.size;
+
+    // 📸 image STOP
+    await channel.send({
+      files: [{
+        attachment: "https://i.ibb.co/j9mGMjDm/AE44-C3-D4-5-F52-4-D45-AE27-409-BDF00-D67-B.png"
+      }]
+    });
+
     let next = 30;
 
     let stopMsg = await channel.send({
       content: `🛑 **SESSION TERMINÉE**
 
 👥 ${total} participants
-⭐ ${starCount}
-🏆 ${trophyCount}
 
 ✅ ${valid} à jour
 ❌ ${invalid} pas à jour
 
-⏳ Prochaine session dans : **00:30**`,
-      files: [{
-        attachment: "https://i.ibb.co/j9mGMjDm/AE44-C3-D4-5-F52-4-D45-AE27-409-BDF00-D67-B.png"
-      }]
+⏳ Prochaine session dans : **00:30**`
     });
 
-    // ⏱️ compteur prochaine session (sans image)
+    // ⏱️ timer prochain
     while (next > 0 && sessionActive) {
       await new Promise(r => setTimeout(r, 1000));
       next--;
 
-      try {
-        await stopMsg.edit({
-          content: `🛑 **SESSION TERMINÉE**
+      await stopMsg.edit({
+        content: `🛑 **SESSION TERMINÉE**
 
 👥 ${total} participants
-⭐ ${starCount}
-🏆 ${trophyCount}
 
 ✅ ${valid} à jour
 ❌ ${invalid} pas à jour
 
 ⏳ Prochaine session dans : **${formatTime(next)}**`
-        });
-      } catch {}
+      });
     }
   }
 
   sessionRunning = false;
 }
 
-
-// ⏰ HORAIRES AUTO
+// ⏰ horaires auto
 setInterval(() => {
   const now = new Date();
   const h = now.getHours();
   const m = now.getMinutes();
 
-  if (h === 9 && m === 0) {
-    if (!sessionActive) {
-      sessionActive = true;
-      const channel = client.channels.cache.get(CHANNEL_ID);
-      runLoop(channel);
-      console.log("⏰ AUTO START");
-    }
+  if (h === 9 && m === 0 && !sessionActive) {
+    sessionActive = true;
+    const channel = client.channels.cache.get(CHANNEL_ID);
+    runLoop(channel);
   }
 
   if (h === 1 && m === 0) {
     sessionActive = false;
-      console.log("⏰ AUTO STOP");
   }
 
 }, 60000);
 
-
-// 🚀 LOGIN
 client.login(TOKEN);
