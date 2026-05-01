@@ -1,11 +1,14 @@
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 
 const TOKEN = process.env.TOKEN;
-
 const CHANNEL_ID = "1496696155541864633";
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent]
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent
+  ]
 });
 
 let sessionActive = false;
@@ -18,17 +21,28 @@ function formatTime(seconds) {
   return `${m}:${s}`;
 }
 
-// 🔥 READY
-client.once('ready', () => {
+// ✅ READY (version propre)
+client.once('clientReady', () => {
   console.log(`✅ Connecté en tant que ${client.user.tag}`);
 });
 
-// 💬 COMMANDES TEXTE (.start / .stop)
+// 💬 COMMANDES TEXTE
 client.on('messageCreate', async message => {
+  console.log("📩 Message reçu :", message.content); // DEBUG
+
   if (message.author.bot) return;
 
+  // ⚠️ IMPORTANT : trim + lowercase
+  const content = message.content.trim().toLowerCase();
+
   // ▶️ START
-  if (message.content === ".start") {
+  if (content === ".start") {
+
+    // 🔒 bloque si mauvais salon
+    if (message.channel.id !== CHANNEL_ID) {
+      return message.reply("❌ Utilise cette commande dans le bon salon");
+    }
+
     if (sessionActive) {
       return message.reply("⚠️ Session déjà active");
     }
@@ -40,7 +54,7 @@ client.on('messageCreate', async message => {
   }
 
   // ⏹ STOP
-  if (message.content === ".stop") {
+  if (content === ".stop") {
     sessionActive = false;
     sessionRunning = false;
 
@@ -110,5 +124,7 @@ Pense à réagir aux liens des autres 🧡`
   sessionRunning = false;
 }
 
-// 🚀 LOGIN
-client.login(TOKEN);
+// 🚀 LOGIN + gestion erreur
+client.login(TOKEN).catch(err => {
+  console.error("❌ ERREUR TOKEN :", err);
+});
