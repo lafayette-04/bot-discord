@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits } = require('discord.js');
+const { Client, GatewayIntentBits, AttachmentBuilder } = require('discord.js');
 
 const TOKEN = process.env.TOKEN;
 const CHANNEL_ID = "1496696155541864633";
@@ -48,20 +48,18 @@ async function runLoop(channel) {
 
     let timeLeft = 60;
 
-    // ✅ MESSAGE SANS EMBED
+    // 📸 IMAGE EN FICHIER (PAS DE LIEN)
+    const image = new AttachmentBuilder("https://i.ibb.co/6Jm36jvX/84-F407-FF-EB63-4-EB3-83-D9-553-A1-A1-B57-D6.png");
+
     let msg = await channel.send({
       content: `💎 **SESSION ARTICLE**
 
 🕒 Temps restant : **01:00**
 🎉 ⭐️ autorisés
 
-Pense à réagir aux liens des autres 🧡
-
-<https://i.ibb.co/6Jm36jvX/84-F407-FF-EB63-4-EB3-83-D9-553-A1-A1-B57-D6.png>`
+Pense à réagir aux liens des autres 🧡`,
+      files: [image]
     });
-
-    // 🔥 enlève embed auto (sécurité)
-    msg.suppressEmbeds(true);
 
     // ⏱️ COMPTEUR
     while (timeLeft > 0 && sessionActive) {
@@ -75,27 +73,23 @@ Pense à réagir aux liens des autres 🧡
 🕒 Temps restant : **${formatTime(timeLeft)}**
 🎉 ⭐️ autorisés
 
-Pense à réagir aux liens des autres 🧡
-
-<https://i.ibb.co/6Jm36jvX/84-F407-FF-EB63-4-EB3-83-D9-553-A1-A1-B57-D6.png>`
+Pense à réagir aux liens des autres 🧡`,
+          files: [image]
         });
-
-        msg.suppressEmbeds(true);
       } catch {}
     }
 
     if (!sessionActive) break;
 
-    // 🛑 STOP
-    let stopMsg = await channel.send({
+    // 🛑 STOP IMAGE
+    const stopImage = new AttachmentBuilder("https://i.ibb.co/j9mGMjDm/AE44-C3-D4-5-F52-4-D45-AE27-409-BDF00-D67-B.png");
+
+    await channel.send({
       content: `🛑 **SESSION TERMINÉE**
 
-⏳ Prochaine dans 25 secondes
-
-<https://i.ibb.co/j9mGMjDm/AE44-C3-D4-5-F52-4-D45-AE27-409-BDF00-D67-B.png>`
+⏳ Prochaine dans 25 secondes`,
+      files: [stopImage]
     });
-
-    stopMsg.suppressEmbeds(true);
 
     await new Promise(r => setTimeout(r, 25000));
   }
