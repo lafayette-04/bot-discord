@@ -61,7 +61,7 @@ client.on("interactionCreate", async interaction => {
   }
 });
 
-// 📥 gestion des liens
+// 📥 messages
 client.on("messageCreate", message => {
   if (!sessionActive) return;
   if (message.channel.id !== CHANNEL_ID) return;
@@ -73,20 +73,10 @@ client.on("messageCreate", message => {
 
   let userLinks = sessionMessages.filter(m => m.author.id === message.author.id).length;
 
-  // 🏆 utilisateur gagnant
   if (message.author.id === trophyUser && Date.now() < trophyExpire) {
-
-    // doit avoir 🏆 pour 2ème lien
-    if (userLinks === 1 && !isTrophyLink) {
-      return message.delete();
-    }
-
-    if (userLinks >= 2) {
-      return message.delete();
-    }
-
+    if (userLinks === 1 && !isTrophyLink) return message.delete();
+    if (userLinks >= 2) return message.delete();
   } else {
-    // utilisateur normal
     if (isTrophyLink) return message.delete();
     if (userLinks >= 1) return message.delete();
   }
@@ -132,9 +122,9 @@ Pense à réagir aux liens des autres 🧡`
 
     await new Promise(r => setTimeout(r, 1500));
 
-    // 📊 ANALYSE
+    // 📊 ANALYSE FIX
     let participants = new Set();
-    let validUsers = new Set();
+    let reactedUsers = new Set();
     let starUsers = new Set();
 
     for (const m of sessionMessages) {
@@ -146,26 +136,27 @@ Pense à réagir aux liens des autres 🧡`
         users.forEach(u => {
           if (u.bot) return;
 
+          // ⭐ sur son propre lien
           if (u.id === m.author.id && r.emoji.name === "⭐") {
             starUsers.add(u.id);
           }
 
+          // ✅ réaction sur autre lien
           if (u.id !== m.author.id) {
-            validUsers.add(u.id);
+            reactedUsers.add(u.id);
           }
         });
       }
     }
 
     let total = participants.size;
-
     let valid = 0;
     let invalid = 0;
 
     participants.forEach(id => {
       if (starUsers.has(id)) return;
 
-      if (validUsers.has(id)) valid++;
+      if (reactedUsers.has(id)) valid++;
       else invalid++;
     });
 
@@ -203,7 +194,6 @@ Pense à réagir aux liens des autres 🧡`
 👥 **${total} participants**
 ⭐ ${starUsers.size}
 🏆 ${winner ? `<@${winner.id}>` : "Personne"}
-
 ✅ ${valid} à jour
 ❌ ${invalid} pas à jour`,
       components: [getButtons()]
