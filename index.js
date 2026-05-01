@@ -14,32 +14,23 @@ const client = new Client({
 let sessionActive = false;
 let sessionRunning = false;
 
-// ⏱️ format temps
 function formatTime(seconds) {
   const m = String(Math.floor(seconds / 60)).padStart(2, '0');
   const s = String(seconds % 60).padStart(2, '0');
   return `${m}:${s}`;
 }
 
-// 🔥 READY + AUTO START
 client.once('clientReady', () => {
   console.log(`✅ Connecté en tant que ${client.user.tag}`);
 
   const channel = client.channels.cache.get(CHANNEL_ID);
 
-  if (!channel) {
-    console.log("❌ Channel introuvable");
-    return;
-  }
-
   setTimeout(() => {
     sessionActive = true;
-    console.log("🚀 Session auto lancée");
     runLoop(channel);
   }, 3000);
 });
 
-// 🔁 LOOP
 async function runLoop(channel) {
   if (!sessionActive || sessionRunning) return;
   sessionRunning = true;
@@ -48,7 +39,7 @@ async function runLoop(channel) {
 
     let timeLeft = 60;
 
-    // 📸 IMAGE EN FICHIER (PAS DE LIEN)
+    // ✅ envoie image UNE FOIS
     const image = new AttachmentBuilder("https://i.ibb.co/6Jm36jvX/84-F407-FF-EB63-4-EB3-83-D9-553-A1-A1-B57-D6.png");
 
     let msg = await channel.send({
@@ -61,7 +52,7 @@ Pense à réagir aux liens des autres 🧡`,
       files: [image]
     });
 
-    // ⏱️ COMPTEUR
+    // ⏱️ compteur (SANS toucher à l’image)
     while (timeLeft > 0 && sessionActive) {
       await new Promise(r => setTimeout(r, 1000));
       timeLeft--;
@@ -73,15 +64,15 @@ Pense à réagir aux liens des autres 🧡`,
 🕒 Temps restant : **${formatTime(timeLeft)}**
 🎉 ⭐️ autorisés
 
-Pense à réagir aux liens des autres 🧡`,
-          files: [image]
+Pense à réagir aux liens des autres 🧡`
+          // ❌ PAS de files ici !!
         });
       } catch {}
     }
 
     if (!sessionActive) break;
 
-    // 🛑 STOP IMAGE
+    // 🛑 STOP (image une seule fois aussi)
     const stopImage = new AttachmentBuilder("https://i.ibb.co/j9mGMjDm/AE44-C3-D4-5-F52-4-D45-AE27-409-BDF00-D67-B.png");
 
     await channel.send({
@@ -97,5 +88,4 @@ Pense à réagir aux liens des autres 🧡`,
   sessionRunning = false;
 }
 
-// 🚀 LOGIN
 client.login(TOKEN);
