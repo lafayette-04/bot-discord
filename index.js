@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, AttachmentBuilder } = require('discord.js');
+const { Client, GatewayIntentBits } = require('discord.js');
 
 const TOKEN = process.env.TOKEN;
 const CHANNEL_ID = "1496696155541864633";
@@ -7,14 +7,19 @@ const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildMessageReactions
   ]
 });
 
 let sessionActive = false;
 let sessionRunning = false;
 
-// ⏱️ format temps
+// 📊 DATA
+let participants = new Map(); // userId -> { messageId, valid }
+let messageIds = [];
+
+// ⏱️ format
 function formatTime(seconds) {
   const m = String(Math.floor(seconds / 60)).padStart(2, '0');
   const s = String(seconds % 60).padStart(2, '0');
@@ -34,6 +39,30 @@ client.once('clientReady', () => {
   }, 3000);
 });
 
+// 📩 DETECTE LIENS + ANTI SPAM
+client.on('messageCreate', async (message) => {
+  if (!sessionActive) return;
+  if (message.author.bot) return;
+
+  if (message.content.includes("http")) {
+
+    // ❌ Anti spam (1 lien max)
+    if (participants.has(message.author.id)) {
+      try {
+        await message.delete();
+      } catch {}
+      return;
+    }
+
+    messageIds.push(message.id);
+
+    participants.set(message.author.id, {
+      messageId: message.id,
+      valid: false
+    });
+  }
+});
+
 // 🔁 LOOP
 async function runLoop(channel) {
   if (!sessionActive || sessionRunning) return;
@@ -43,65 +72,117 @@ async function runLoop(channel) {
 
     let timeLeft = 60;
 
-    // 📸 IMAGE SESSION
-    const image = new AttachmentBuilder("https://i.ibb.co/6Jm36jvX/84-F407-FF-EB63-4-EB3-83-D9-553-A1-A1-B57-D6.png");
-
+    // 🔥 START
     let msg = await channel.send({
-      content: `\n💎 **SESSION ARTICLE**
-⏱️ **1 minute**
+      content: `💎 **SESSION ARTICLE** (1 minute)
 
 🕒 Temps restant : **01:00**
-🎉 ⭐️ et ∞ autorisés
+🎉 ⭐ et ♾️ autorisés
 
 Pense à réagir aux liens des autres 🧡`,
-      files: [image]
+      files: [{
+        attachment: "https://i.ibb.co/6Jm36jvX/84-F407-FF-EB63-4-EB3-83-D9-553-A1-A1-B57-D6.png"
+      }]
     });
 
-    // ⏱️ COMPTEUR SESSION
+    // ⏱️ TIMER SESSION
     while (timeLeft > 0 && sessionActive) {
       await new Promise(r => setTimeout(r, 1000));
       timeLeft--;
 
       try {
         await msg.edit({
-          content: `\n💎 **SESSION ARTICLE**
-⏱️ **1 minute**
+          content: `💎 **SESSION ARTICLE** (1 minute)
 
 🕒 Temps restant : **${formatTime(timeLeft)}**
-🎉 ⭐️ et ∞ autorisés
+🎉 ⭐ et ♾️ autorisés
 
 Pense à réagir aux liens des autres 🧡`
         });
       } catch {}
     }
 
-    if (!sessionActive) break;
+    // 📊 ANALYSE
+    let valid = 0;
+    let invalid = 0;
+    let infinite = 0;
 
-    // 📸 IMAGE STOP
-    const stopImage = new AttachmentBuilder("https://i.ibb.co/j9mGMjDm/AE44-C3-D4-5-F52-4-D45-AE27-409-BDF00-D67-B.png");
+    for (let [userId, data] of participants) {
+      try {
+        const m = await channel.messages.fetch(data.messageId);
 
-    let nextTime = 25;
+        let hasCheck = false;
+        let hasCross = false;
 
+        m.reactions.cache.forEach(r => {
+          if (r.emoji.name === "✅") hasCheck = true;
+          if (r.emoji.name === "❌") hasCross = true;
+          if (r.emoji.name === "♾️") infinite++;
+        });
+
+        if (hasCheck && !hasCross) {
+          valid++;
+        } else {
+          invalid++;
+        }
+
+      } catch {}
+    }
+
+    let total = participants.size;
+
+    // 🏆 TOP (top 3)
+    let top = [...participants.keys()].slice(0, 3)
+      .map((id, i) => `#${i+1} <@${id}>`)
+      .join("\n") || "Aucun";
+
+    // 🛑 STOP
     let stopMsg = await channel.send({
-      content: `\n🛑 **SESSION TERMINÉE**
+      content: `🛑 **SESSION TERMINÉE**
 
-⏳ Prochaine session dans : **00:25**`,
-      files: [stopImage]
+👥 ${total} participants
+⭐ ${valid} validés
+♾️ ${infinite}
+
+✅ ${valid} à jour
+❌ ${invalid} pas à jour
+
+🏆 **Top participants**
+${top}`,
+      files: [{
+        attachment: "https://i.ibb.co/j9mGMjDm/AE44-C3-D4-5-F52-4-D45-AE27-409-BDF00-D67-B.png"
+      }]
     });
 
-    // ⏱️ COMPTEUR PROCHAINE SESSION
-    while (nextTime > 0 && sessionActive) {
+    // ⏱️ NEXT TIMER
+    let next = 30;
+
+    while (next > 0) {
       await new Promise(r => setTimeout(r, 1000));
-      nextTime--;
+      next--;
 
       try {
         await stopMsg.edit({
-          content: `\n🛑 **SESSION TERMINÉE**
+          content: `🛑 **SESSION TERMINÉE**
 
-⏳ Prochaine session dans : **${formatTime(nextTime)}**`
+👥 ${total} participants
+⭐ ${valid} validés
+♾️ ${infinite}
+
+✅ ${valid} à jour
+❌ ${invalid} pas à jour
+
+🏆 **Top participants**
+${top}
+
+⏳ Prochaine session dans : ${formatTime(next)}`
         });
       } catch {}
     }
+
+    // 🔄 RESET
+    participants.clear();
+    messageIds = [];
   }
 
   sessionRunning = false;
