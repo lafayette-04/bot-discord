@@ -146,12 +146,13 @@ Pense à réagir aux liens des autres 🧡`
 
     let total = participants.size;
 
-    // 🛑 STOP
+    // 🛑 STOP (CORRIGÉ)
     let stopMsg = await channel.send({
       content: `🛑 **SESSION TERMINÉE**
 
 👥 ${total} participants
-${starCount > 0 ? `⭐ ${starCount}\n` : ""}🏆 ${trophyCount}
+⭐ ${starCount}
+🏆 ${trophyCount}
 
 ✅ ${valid} à jour
 ❌ ${invalid} pas à jour`,
@@ -172,7 +173,8 @@ ${starCount > 0 ? `⭐ ${starCount}\n` : ""}🏆 ${trophyCount}
           content: `🛑 **SESSION TERMINÉE**
 
 👥 ${total} participants
-${starCount > 0 ? `⭐ ${starCount}\n` : ""}🏆 ${trophyCount}
+⭐ ${starCount}
+🏆 ${trophyCount}
 
 ✅ ${valid} à jour
 ❌ ${invalid} pas à jour
