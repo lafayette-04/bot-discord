@@ -21,25 +21,20 @@ function formatTime(seconds) {
   return `${m}:${s}`;
 }
 
-// 🔥 READY + AUTO START
+// 🔥 READY
 client.once('clientReady', () => {
   console.log(`✅ Connecté en tant que ${client.user.tag}`);
 
   const channel = client.channels.cache.get(CHANNEL_ID);
-
-  if (!channel) {
-    console.log("❌ Channel introuvable");
-    return;
-  }
+  if (!channel) return console.log("❌ Channel introuvable");
 
   setTimeout(() => {
     sessionActive = true;
-    console.log("🚀 Session auto lancée");
     runLoop(channel);
   }, 3000);
 });
 
-// 🔁 LOOP PRINCIPALE
+// 🔁 LOOP
 async function runLoop(channel) {
   if (!sessionActive || sessionRunning) return;
   sessionRunning = true;
@@ -48,14 +43,15 @@ async function runLoop(channel) {
 
     let timeLeft = 60;
 
-    // 📸 IMAGE SESSION (envoyée UNE FOIS)
+    // 📸 IMAGE SESSION
     const image = new AttachmentBuilder("https://i.ibb.co/6Jm36jvX/84-F407-FF-EB63-4-EB3-83-D9-553-A1-A1-B57-D6.png");
 
     let msg = await channel.send({
-      content: `💎 **SESSION ARTICLE**
+      content: `\n💎 **SESSION ARTICLE**
+⏱️ **1 minute**
 
 🕒 Temps restant : **01:00**
-🎉,⭐️ et ♾️ autorisés
+🎉 ⭐️ et ∞ autorisés
 
 Pense à réagir aux liens des autres 🧡`,
       files: [image]
@@ -68,10 +64,11 @@ Pense à réagir aux liens des autres 🧡`,
 
       try {
         await msg.edit({
-          content: `💎 **SESSION ARTICLE**
+          content: `\n💎 **SESSION ARTICLE**
+⏱️ **1 minute**
 
 🕒 Temps restant : **${formatTime(timeLeft)}**
-🎉,⭐️ et ♾️ autorisés
+🎉 ⭐️ et ∞ autorisés
 
 Pense à réagir aux liens des autres 🧡`
         });
@@ -80,13 +77,13 @@ Pense à réagir aux liens des autres 🧡`
 
     if (!sessionActive) break;
 
-    // 🛑 IMAGE STOP
+    // 📸 IMAGE STOP
     const stopImage = new AttachmentBuilder("https://i.ibb.co/j9mGMjDm/AE44-C3-D4-5-F52-4-D45-AE27-409-BDF00-D67-B.png");
 
     let nextTime = 25;
 
     let stopMsg = await channel.send({
-      content: `🛑 **SESSION TERMINÉE**
+      content: `\n🛑 **SESSION TERMINÉE**
 
 ⏳ Prochaine session dans : **00:25**`,
       files: [stopImage]
@@ -99,7 +96,7 @@ Pense à réagir aux liens des autres 🧡`
 
       try {
         await stopMsg.edit({
-          content: `🛑 **SESSION TERMINÉE**
+          content: `\n🛑 **SESSION TERMINÉE**
 
 ⏳ Prochaine session dans : **${formatTime(nextTime)}**`
         });
@@ -110,5 +107,4 @@ Pense à réagir aux liens des autres 🧡`
   sessionRunning = false;
 }
 
-// 🚀 LOGIN
 client.login(TOKEN);
