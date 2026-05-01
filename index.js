@@ -20,7 +20,7 @@ const client = new Client({
 });
 
 let sessionActive = false;
-let sessionRunning = false;
+let sessionLoopRunning = false;
 let sessionMessages = [];
 
 let trophyUser = null;
@@ -41,7 +41,7 @@ function getButtons() {
   );
 }
 
-// 🎯 interaction
+// 🎯 boutons click
 client.on("interactionCreate", async interaction => {
   if (!interaction.isButton()) return;
 
@@ -50,9 +50,14 @@ client.on("interactionCreate", async interaction => {
   }
 
   if (interaction.customId === "start") {
-    sessionActive = true;
-    interaction.reply({ content: "🚀 Session lancée", ephemeral: true });
-    runLoop(interaction.channel);
+    if (!sessionActive) {
+      sessionActive = true;
+      interaction.reply({ content: "🚀 Session lancée", ephemeral: true });
+
+      if (!sessionLoopRunning) {
+        runLoop(interaction.channel);
+      }
+    }
   }
 
   if (interaction.customId === "stop") {
@@ -84,16 +89,18 @@ client.on("messageCreate", message => {
   sessionMessages.push(message);
 });
 
-// 🔁 LOOP
+// 🔁 LOOP INFINI
 async function runLoop(channel) {
-  if (sessionRunning) return;
-  sessionRunning = true;
+  sessionLoopRunning = true;
 
   while (sessionActive) {
 
+    // RESET
     sessionMessages = [];
+
     let timeLeft = 60;
 
+    // IMAGE START
     await channel.send({
       files: ["https://i.ibb.co/6Jm36jvX/84-F407-FF-EB63-4-EB3-83-D9-553-A1-A1-B57-D6.png"]
     });
@@ -105,6 +112,7 @@ async function runLoop(channel) {
 Pense à réagir aux liens des autres 🧡`
     });
 
+    // TIMER SESSION
     while (timeLeft > 0 && sessionActive) {
       await new Promise(r => setTimeout(r, 1000));
       timeLeft--;
@@ -121,7 +129,7 @@ Pense à réagir aux liens des autres 🧡`
 
     await new Promise(r => setTimeout(r, 1500));
 
-    // 🔥 ANALYSE FIX
+    // 📊 ANALYSE
     let participants = new Set();
     let reactedUsers = new Set();
     let starUsers = new Set();
@@ -129,7 +137,6 @@ Pense à réagir aux liens des autres 🧡`
     for (const m of sessionMessages) {
       participants.add(m.author.id);
 
-      // ⚠️ FORCE FETCH (IMPORTANT)
       await m.fetch();
       await m.reactions.fetch();
 
@@ -139,12 +146,10 @@ Pense à réagir aux liens des autres 🧡`
         users.forEach(u => {
           if (u.bot) return;
 
-          // ⭐ = exclu
           if (u.id === m.author.id && r.emoji.name === "⭐") {
             starUsers.add(u.id);
           }
 
-          // ✅ réaction sur lien (MEME SI 1 SEUL USER)
           if (u.id !== m.author.id || participants.size === 1) {
             reactedUsers.add(u.id);
           }
@@ -188,6 +193,7 @@ Pense à réagir aux liens des autres 🧡`
       trophyExpire = Date.now() + 24 * 60 * 60 * 1000;
     }
 
+    // IMAGE STOP
     await channel.send({
       files: ["https://i.ibb.co/j9mGMjDm/AE44-C3-D4-5-F52-4-D45-AE27-409-BDF00-D67-B.png"]
     });
@@ -202,6 +208,7 @@ Pense à réagir aux liens des autres 🧡`
       components: [getButtons()]
     });
 
+    // ⏳ PROCHAINE SESSION
     let next = 30;
 
     let nextMsg = await channel.send({
@@ -216,9 +223,11 @@ Pense à réagir aux liens des autres 🧡`
         content: `⏳ Prochaine session dans : ${formatTime(next)}`
       });
     }
+
+    // 🔥 REPART DIRECTEMENT (c’est ça qui manquait)
   }
 
-  sessionRunning = false;
+  sessionLoopRunning = false;
 }
 
 client.login(TOKEN);
