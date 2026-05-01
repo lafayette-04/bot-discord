@@ -20,7 +20,7 @@ const client = new Client({
 
 let sessionActive = false;
 let sessionRunning = false;
-let controlMessage = null;
+let sessionMessages = [];
 
 // ⏱️ format temps
 function formatTime(sec) {
@@ -48,22 +48,28 @@ client.once('clientReady', async () => {
   console.log(`✅ Connecté en tant que ${client.user.tag}`);
 
   const channel = client.channels.cache.get(CHANNEL_ID);
-  if (!channel) return console.log("❌ Channel introuvable");
+  if (!channel) return;
 
-  // supprimer anciens boutons
-  const messages = await channel.messages.fetch({ limit: 20 });
-  const old = messages.find(m => m.author.id === client.user.id && m.components.length > 0);
-  if (old) await old.delete().catch(() => {});
-
-  // envoyer 1 seul bouton
-  controlMessage = await channel.send({
+  await channel.send({
     content: "🎛️ **Contrôle des sessions (admin)**",
     components: [getButtons()]
   });
 });
 
 
-// 🎛️ interaction boutons
+// 📥 CAPTURE LIENS
+client.on("messageCreate", message => {
+  if (!sessionActive) return;
+  if (message.channel.id !== CHANNEL_ID) return;
+  if (message.author.bot) return;
+
+  if (message.content.includes("http")) {
+    sessionMessages.push(message);
+  }
+});
+
+
+// 🎛️ BOUTONS
 client.on("interactionCreate", async interaction => {
   if (!interaction.isButton()) return;
 
@@ -71,15 +77,13 @@ client.on("interactionCreate", async interaction => {
     return interaction.reply({ content: "❌ Pas autorisé", ephemeral: true });
   }
 
+  const channel = client.channels.cache.get(CHANNEL_ID);
+
   if (interaction.customId === "start") {
     if (!sessionActive) {
       sessionActive = true;
       interaction.reply({ content: "🚀 Sessions lancées", ephemeral: true });
-
-      const channel = client.channels.cache.get(CHANNEL_ID);
       runLoop(channel);
-    } else {
-      interaction.reply({ content: "⚠️ Déjà actif", ephemeral: true });
     }
   }
 
@@ -97,6 +101,8 @@ async function runLoop(channel) {
 
   while (sessionActive) {
 
+    sessionMessages = []; // reset
+
     let timeLeft = 60;
 
     let msg = await channel.send({
@@ -111,7 +117,7 @@ Pense à réagir aux liens des autres 🧡`,
       }]
     });
 
-    // ⏱️ compteur session
+    // ⏱️ compteur (SANS image pour éviter clignotement)
     while (timeLeft > 0 && sessionActive) {
       await new Promise(r => setTimeout(r, 1000));
       timeLeft--;
@@ -123,21 +129,48 @@ Pense à réagir aux liens des autres 🧡`,
 🕒 Temps restant : **${formatTime(timeLeft)}**
 🎉 ⭐ et 🏆 autorisés
 
-Pense à réagir aux liens des autres 🧡`,
-          files: [{
-            attachment: "https://i.ibb.co/6Jm36jvX/84-F407-FF-EB63-4-EB3-83-D9-553-A1-A1-B57-D6.png"
-          }]
+Pense à réagir aux liens des autres 🧡`
         });
       } catch {}
     }
 
     if (!sessionActive) break;
 
-    // 🛑 STOP + timer prochain
+    // ⏳ laisse le temps aux réactions
+    await new Promise(r => setTimeout(r, 3000));
+
+    // 📊 CALCUL
+    let users = new Set();
+    let starCount = 0;
+    let trophyCount = 0;
+    let valid = 0;
+    let invalid = 0;
+
+    for (const msg of sessionMessages) {
+      users.add(msg.author.id);
+
+      const reactions = msg.reactions.cache;
+
+      if (reactions.get("⭐")) starCount++;
+      if (reactions.get("🏆")) trophyCount++;
+      if (reactions.get("✅")) valid++;
+      if (reactions.get("❌")) invalid++;
+    }
+
+    let total = users.size;
+
+    // 🛑 STOP + STATS
     let next = 30;
 
     let stopMsg = await channel.send({
       content: `🛑 **SESSION TERMINÉE**
+
+👥 ${total} participants
+⭐ ${starCount}
+🏆 ${trophyCount}
+
+✅ ${valid} à jour
+❌ ${invalid} pas à jour
 
 ⏳ Prochaine session dans : **00:30**`,
       files: [{
@@ -145,6 +178,7 @@ Pense à réagir aux liens des autres 🧡`,
       }]
     });
 
+    // ⏱️ compteur prochaine session (sans image)
     while (next > 0 && sessionActive) {
       await new Promise(r => setTimeout(r, 1000));
       next--;
@@ -153,10 +187,14 @@ Pense à réagir aux liens des autres 🧡`,
         await stopMsg.edit({
           content: `🛑 **SESSION TERMINÉE**
 
-⏳ Prochaine session dans : **${formatTime(next)}**`,
-          files: [{
-            attachment: "https://i.ibb.co/j9mGMjDm/AE44-C3-D4-5-F52-4-D45-AE27-409-BDF00-D67-B.png"
-          }]
+👥 ${total} participants
+⭐ ${starCount}
+🏆 ${trophyCount}
+
+✅ ${valid} à jour
+❌ ${invalid} pas à jour
+
+⏳ Prochaine session dans : **${formatTime(next)}**`
         });
       } catch {}
     }
@@ -166,27 +204,24 @@ Pense à réagir aux liens des autres 🧡`,
 }
 
 
-// ⏰ HORAIRES AUTO (H24)
+// ⏰ HORAIRES AUTO
 setInterval(() => {
   const now = new Date();
   const h = now.getHours();
   const m = now.getMinutes();
 
-  // START 09:00
   if (h === 9 && m === 0) {
     if (!sessionActive) {
-      console.log("⏰ AUTO START 09:00");
       sessionActive = true;
-
       const channel = client.channels.cache.get(CHANNEL_ID);
-      if (channel) runLoop(channel);
+      runLoop(channel);
+      console.log("⏰ AUTO START");
     }
   }
 
-  // STOP 01:00
   if (h === 1 && m === 0) {
-    console.log("⏰ AUTO STOP 01:00");
     sessionActive = false;
+      console.log("⏰ AUTO STOP");
   }
 
 }, 60000);
