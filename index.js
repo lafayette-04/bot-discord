@@ -23,7 +23,7 @@ let sessionActive = false;
 let sessionRunning = false;
 let sessionMessages = [];
 
-// ⏱️ format
+// ⏱️ format temps
 function formatTime(sec) {
   const m = String(Math.floor(sec / 60)).padStart(2, "0");
   const s = String(sec % 60).padStart(2, "0");
@@ -45,7 +45,7 @@ function getButtons() {
   );
 }
 
-// 🎯 boutons interaction
+// 🎯 gestion boutons
 client.on("interactionCreate", async interaction => {
   if (!interaction.isButton()) return;
 
@@ -65,7 +65,7 @@ client.on("interactionCreate", async interaction => {
   }
 });
 
-// 📥 récupérer messages avec lien
+// 📥 récupération des liens
 client.on("messageCreate", message => {
   if (!sessionActive) return;
   if (message.channel.id !== CHANNEL_ID) return;
@@ -76,7 +76,7 @@ client.on("messageCreate", message => {
   }
 });
 
-// 🔁 boucle session
+// 🔁 boucle principale
 async function runLoop(channel) {
   if (sessionRunning) return;
   sessionRunning = true;
@@ -84,45 +84,42 @@ async function runLoop(channel) {
   while (sessionActive) {
 
     sessionMessages = [];
-
     let timeLeft = 60;
 
-    // 📸 IMAGE SESSION
-    await channel.send({
-      files: ["https://i.ibb.co/6Jm36jvX/84-F407-FF-EB63-4-EB3-83-D9-553-A1-A1-B57-D6.png"]
-    });
+    // 📸 IMAGE SESSION (rapide)
+    const embedStart = {
+      image: {
+        url: "https://i.ibb.co/6Jm36jvX/84-F407-FF-EB63-4-EB3-83-D9-553-A1-A1-B57-D6.png"
+      }
+    };
 
     let msg = await channel.send({
+      embeds: [embedStart],
       content: `💎 **SESSION ARTICLE (1 minute)**
-
 ⏱️ Temps restant : **01:00**
-
 🎉 ⭐ et 🏆 autorisés
-
 Pense à réagir aux liens des autres 🧡`
     });
 
-    // ⏱️ compteur
+    // ⏱️ timer
     while (timeLeft > 0 && sessionActive) {
       await new Promise(r => setTimeout(r, 1000));
       timeLeft--;
 
       await msg.edit({
+        embeds: [embedStart],
         content: `💎 **SESSION ARTICLE (1 minute)**
-
 ⏱️ Temps restant : **${formatTime(timeLeft)}**
-
 🎉 ⭐ et 🏆 autorisés
-
 Pense à réagir aux liens des autres 🧡`
       });
     }
 
     if (!sessionActive) break;
 
-    await new Promise(r => setTimeout(r, 2000));
+    await new Promise(r => setTimeout(r, 1500));
 
-    // 📊 STATS
+    // 📊 calcul stats
     let participants = new Set();
     let validUsers = new Set();
 
@@ -133,7 +130,6 @@ Pense à réagir aux liens des autres 🧡`
         const users = await r.users.fetch();
 
         users.forEach(u => {
-          // 🔥 IMPORTANT : doit réagir sur UN AUTRE lien
           if (!u.bot && u.id !== m.author.id) {
             validUsers.add(u.id);
           }
@@ -142,7 +138,6 @@ Pense à réagir aux liens des autres 🧡`
     }
 
     let total = participants.size;
-
     let valid = 0;
     let invalid = 0;
 
@@ -155,19 +150,20 @@ Pense à réagir aux liens des autres 🧡`
     let trophyCount = total;
 
     // 🛑 IMAGE STOP
-    await channel.send({
-      files: ["https://i.ibb.co/j9mGMjDm/AE44-C3-D4-5-F52-4-D45-AE27-409-BDF00-D67-B.png"]
-    });
+    const embedStop = {
+      image: {
+        url: "https://i.ibb.co/j9mGMjDm/AE44-C3-D4-5-F52-4-D45-AE27-409-BDF00-D67-B.png"
+      }
+    };
 
-    // 📊 MESSAGE FINAL
+    await channel.send({ embeds: [embedStop] });
+
+    // 📊 message final compact
     await channel.send({
       content: `🛑 **SESSION TERMINÉE**
-
 👥 **${total} participants**
-
 ⭐ ${starCount}
 🏆 ${trophyCount}
-
 ✅ ${valid} à jour
 ❌ ${invalid} pas à jour`,
       components: [getButtons()]
