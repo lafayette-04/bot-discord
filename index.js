@@ -22,7 +22,7 @@ function formatTime(seconds) {
 }
 
 // 🔥 READY + AUTO START
-client.once('ready', () => {
+client.once('clientReady', () => {
   console.log(`✅ Connecté en tant que ${client.user.tag}`);
 
   const channel = client.channels.cache.get(CHANNEL_ID);
