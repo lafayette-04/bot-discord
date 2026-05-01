@@ -16,8 +16,7 @@ let sessionActive = false;
 let sessionRunning = false;
 
 // 📊 DATA
-let participants = new Map(); // userId -> { messageId }
-let messageIds = [];
+let participants = new Map(); // userId -> messageId
 
 // ⏱️ format
 function formatTime(seconds) {
@@ -46,17 +45,13 @@ client.on('messageCreate', async (message) => {
 
   if (message.content.includes("http")) {
 
-    // ❌ Anti spam (1 lien max)
+    // ❌ 1 lien max
     if (participants.has(message.author.id)) {
       try { await message.delete(); } catch {}
       return;
     }
 
-    messageIds.push(message.id);
-
-    participants.set(message.author.id, {
-      messageId: message.id
-    });
+    participants.set(message.author.id, message.id);
   }
 });
 
@@ -65,11 +60,10 @@ client.on('messageReactionAdd', async (reaction, user) => {
   if (user.bot) return;
 
   try {
-    const message = reaction.message;
+    const msg = reaction.message;
 
-    // si c'est un message d'un participant
-    for (let [userId, data] of participants) {
-      if (data.messageId === message.id && user.id === userId) {
+    for (let [userId, messageId] of participants) {
+      if (msg.id === messageId && user.id === userId) {
         await reaction.users.remove(user.id);
       }
     }
@@ -98,8 +92,8 @@ Pense à réagir aux liens des autres 🧡`,
       }]
     });
 
-    // ⏱️ TIMER SESSION
-    while (timeLeft > 0 && sessionActive) {
+    // ⏱️ TIMER
+    while (timeLeft > 0) {
       await new Promise(r => setTimeout(r, 1000));
       timeLeft--;
 
@@ -118,22 +112,31 @@ Pense à réagir aux liens des autres 🧡`
     // 📊 ANALYSE
     let valid = 0;
     let invalid = 0;
-    let infinite = 0;
     let starCount = 0;
+    let trophyCount = 0;
 
-    for (let [userId, data] of participants) {
+    for (let [userId, messageId] of participants) {
       try {
-        const m = await channel.messages.fetch(data.messageId);
+        const m = await channel.messages.fetch(messageId);
 
         let hasCheck = false;
         let hasCross = false;
 
-        m.reactions.cache.forEach(r => {
-          if (r.emoji.name === "✅") hasCheck = true;
-          if (r.emoji.name === "❌") hasCross = true;
-          if (r.emoji.name === "🏆") infinite++;
-          if (r.emoji.name === "⭐") starCount++;
-        });
+        for (const reaction of m.reactions.cache.values()) {
+
+          const users = await reaction.users.fetch();
+
+          if (reaction.emoji.name === "✅" && users.size > 0) hasCheck = true;
+          if (reaction.emoji.name === "❌" && users.size > 0) hasCross = true;
+
+          if (reaction.emoji.name === "⭐") {
+            starCount += users.size;
+          }
+
+          if (reaction.emoji.name === "🏆") {
+            trophyCount += users.size;
+          }
+        }
 
         if (hasCheck && !hasCross) valid++;
         else invalid++;
@@ -148,8 +151,7 @@ Pense à réagir aux liens des autres 🧡`
       content: `🛑 **SESSION TERMINÉE**
 
 👥 ${total} participants
-${starCount > 0 ? `⭐ ${starCount}` : ""}
-🏆 ${infinite}
+${starCount > 0 ? `⭐ ${starCount}\n` : ""}🏆 ${trophyCount}
 
 ✅ ${valid} à jour
 ❌ ${invalid} pas à jour`,
@@ -170,8 +172,7 @@ ${starCount > 0 ? `⭐ ${starCount}` : ""}
           content: `🛑 **SESSION TERMINÉE**
 
 👥 ${total} participants
-${starCount > 0 ? `⭐ ${starCount}` : ""}
-🏆 ${infinite}
+${starCount > 0 ? `⭐ ${starCount}\n` : ""}🏆 ${trophyCount}
 
 ✅ ${valid} à jour
 ❌ ${invalid} pas à jour
@@ -183,7 +184,6 @@ ${starCount > 0 ? `⭐ ${starCount}` : ""}
 
     // 🔄 RESET
     participants.clear();
-    messageIds = [];
   }
 
   sessionRunning = false;
