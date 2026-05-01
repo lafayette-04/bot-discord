@@ -22,7 +22,6 @@ let sessionActive = false;
 let sessionRunning = false;
 let sessionMessages = [];
 
-// ⏱️ format temps
 function formatTime(sec) {
   const m = String(Math.floor(sec / 60)).padStart(2, "0");
   const s = String(sec % 60).padStart(2, "0");
@@ -60,7 +59,7 @@ client.on("messageCreate", message => {
   }
 });
 
-// 🎛️ boutons admin
+// 🎛️ boutons
 client.on("interactionCreate", async interaction => {
   if (!interaction.isButton()) return;
 
@@ -93,24 +92,23 @@ async function runLoop(channel) {
 
     let timeLeft = 60;
 
-    // 📸 image
+    // 📸 IMAGE START
     await channel.send({
       files: [{
         attachment: "https://i.ibb.co/6Jm36jvX/84-F407-FF-EB63-4-EB3-83-D9-553-A1-A1-B57-D6.png"
       }]
     });
 
-    // 📝 texte
     let msg = await channel.send({
       content: `💎 **SESSION ARTICLE (1 minute)**
 
 🕒 Temps restant : **01:00**
-🎉 Réagis aux AUTRES liens pour être validé
+🎉 ⭐ et 🏆 autorisés
 
-🧡 Sois actif !`
+Pense à réagir aux liens des autres 🧡`
     });
 
-    // ⏱️ timer
+    // ⏱️ TIMER
     while (timeLeft > 0 && sessionActive) {
       await new Promise(r => setTimeout(r, 1000));
       timeLeft--;
@@ -119,9 +117,9 @@ async function runLoop(channel) {
         content: `💎 **SESSION ARTICLE (1 minute)**
 
 🕒 Temps restant : **${formatTime(timeLeft)}**
-🎉 Réagis aux AUTRES liens pour être validé
+🎉 ⭐ et 🏆 autorisés
 
-🧡 Sois actif !`
+Pense à réagir aux liens des autres 🧡`
       });
     }
 
@@ -129,7 +127,7 @@ async function runLoop(channel) {
 
     await new Promise(r => setTimeout(r, 3000));
 
-    // 📊 CALCUL CORRECT
+    // 📊 CALCUL SIMPLE
     let participants = new Set();
     let reactedUsers = new Set();
 
@@ -140,32 +138,27 @@ async function runLoop(channel) {
         const users = await reaction.users.fetch();
 
         users.forEach(user => {
-          if (user.bot) return;
-
-          // ❗ doit réagir sur un AUTRE message
-          if (user.id !== msg.author.id) {
+          if (!user.bot) {
             reactedUsers.add(user.id);
           }
         });
       }
     }
 
-    let validUsers = new Set();
-    let invalidUsers = new Set();
+    let total = participants.size;
+
+    let valid = 0;
+    let invalid = 0;
 
     participants.forEach(id => {
       if (reactedUsers.has(id)) {
-        validUsers.add(id);
+        valid++;
       } else {
-        invalidUsers.add(id);
+        invalid++;
       }
     });
 
-    let total = participants.size;
-    let valid = validUsers.size;
-    let invalid = invalidUsers.size;
-
-    // 📸 image STOP
+    // 📸 IMAGE STOP
     await channel.send({
       files: [{
         attachment: "https://i.ibb.co/j9mGMjDm/AE44-C3-D4-5-F52-4-D45-AE27-409-BDF00-D67-B.png"
@@ -178,6 +171,8 @@ async function runLoop(channel) {
       content: `🛑 **SESSION TERMINÉE**
 
 👥 ${total} participants
+⭐ ${valid}
+🏆 ${invalid}
 
 ✅ ${valid} à jour
 ❌ ${invalid} pas à jour
@@ -185,7 +180,7 @@ async function runLoop(channel) {
 ⏳ Prochaine session dans : **00:30**`
     });
 
-    // ⏱️ timer prochain
+    // ⏱️ NEXT TIMER
     while (next > 0 && sessionActive) {
       await new Promise(r => setTimeout(r, 1000));
       next--;
@@ -194,6 +189,8 @@ async function runLoop(channel) {
         content: `🛑 **SESSION TERMINÉE**
 
 👥 ${total} participants
+⭐ ${valid}
+🏆 ${invalid}
 
 ✅ ${valid} à jour
 ❌ ${invalid} pas à jour
@@ -206,7 +203,7 @@ async function runLoop(channel) {
   sessionRunning = false;
 }
 
-// ⏰ horaires auto
+// ⏰ AUTO (09h → 01h)
 setInterval(() => {
   const now = new Date();
   const h = now.getHours();
