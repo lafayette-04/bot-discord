@@ -8,7 +8,7 @@ const {
 
 const TOKEN = process.env.TOKEN;
 const CHANNEL_ID = "1496696155541864633";
-const OWNER_ID = "amine_lafayette";
+const OWNER_ID = "872925370314260490";
 
 const client = new Client({
   intents: [
