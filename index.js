@@ -16,7 +16,7 @@ let sessionActive = false;
 let sessionRunning = false;
 
 // 📊 DATA
-let participants = new Map(); // userId -> { messageId, valid }
+let participants = new Map(); // userId -> { messageId }
 let messageIds = [];
 
 // ⏱️ format
@@ -48,19 +48,32 @@ client.on('messageCreate', async (message) => {
 
     // ❌ Anti spam (1 lien max)
     if (participants.has(message.author.id)) {
-      try {
-        await message.delete();
-      } catch {}
+      try { await message.delete(); } catch {}
       return;
     }
 
     messageIds.push(message.id);
 
     participants.set(message.author.id, {
-      messageId: message.id,
-      valid: false
+      messageId: message.id
     });
   }
+});
+
+// 🚫 EMPÊCHE RÉACTION SUR SON PROPRE LIEN
+client.on('messageReactionAdd', async (reaction, user) => {
+  if (user.bot) return;
+
+  try {
+    const message = reaction.message;
+
+    // si c'est un message d'un participant
+    for (let [userId, data] of participants) {
+      if (data.messageId === message.id && user.id === userId) {
+        await reaction.users.remove(user.id);
+      }
+    }
+  } catch {}
 });
 
 // 🔁 LOOP
@@ -77,7 +90,7 @@ async function runLoop(channel) {
       content: `💎 **SESSION ARTICLE** (1 minute)
 
 🕒 Temps restant : **01:00**
-🎉 ⭐ et ♾️ autorisés
+🎉 ⭐ et 🏆 autorisés
 
 Pense à réagir aux liens des autres 🧡`,
       files: [{
@@ -95,7 +108,7 @@ Pense à réagir aux liens des autres 🧡`,
           content: `💎 **SESSION ARTICLE** (1 minute)
 
 🕒 Temps restant : **${formatTime(timeLeft)}**
-🎉 ⭐ et ♾️ autorisés
+🎉 ⭐ et 🏆 autorisés
 
 Pense à réagir aux liens des autres 🧡`
         });
@@ -106,6 +119,7 @@ Pense à réagir aux liens des autres 🧡`
     let valid = 0;
     let invalid = 0;
     let infinite = 0;
+    let starCount = 0;
 
     for (let [userId, data] of participants) {
       try {
@@ -117,38 +131,28 @@ Pense à réagir aux liens des autres 🧡`
         m.reactions.cache.forEach(r => {
           if (r.emoji.name === "✅") hasCheck = true;
           if (r.emoji.name === "❌") hasCross = true;
-          if (r.emoji.name === "♾️") infinite++;
+          if (r.emoji.name === "🏆") infinite++;
+          if (r.emoji.name === "⭐") starCount++;
         });
 
-        if (hasCheck && !hasCross) {
-          valid++;
-        } else {
-          invalid++;
-        }
+        if (hasCheck && !hasCross) valid++;
+        else invalid++;
 
       } catch {}
     }
 
     let total = participants.size;
 
-    // 🏆 TOP (top 3)
-    let top = [...participants.keys()].slice(0, 3)
-      .map((id, i) => `#${i+1} <@${id}>`)
-      .join("\n") || "Aucun";
-
     // 🛑 STOP
     let stopMsg = await channel.send({
       content: `🛑 **SESSION TERMINÉE**
 
 👥 ${total} participants
-⭐ ${valid} validés
-♾️ ${infinite}
+${starCount > 0 ? `⭐ ${starCount}` : ""}
+🏆 ${infinite}
 
 ✅ ${valid} à jour
-❌ ${invalid} pas à jour
-
-🏆 **Top participants**
-${top}`,
+❌ ${invalid} pas à jour`,
       files: [{
         attachment: "https://i.ibb.co/j9mGMjDm/AE44-C3-D4-5-F52-4-D45-AE27-409-BDF00-D67-B.png"
       }]
@@ -166,14 +170,11 @@ ${top}`,
           content: `🛑 **SESSION TERMINÉE**
 
 👥 ${total} participants
-⭐ ${valid} validés
-♾️ ${infinite}
+${starCount > 0 ? `⭐ ${starCount}` : ""}
+🏆 ${infinite}
 
 ✅ ${valid} à jour
 ❌ ${invalid} pas à jour
-
-🏆 **Top participants**
-${top}
 
 ⏳ Prochaine session dans : ${formatTime(next)}`
         });
