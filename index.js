@@ -26,14 +26,14 @@ let sessionMessages = [];
 let trophyUser = null;
 let trophyExpire = 0;
 
-// ⏱️ format
+let pauseBetween = false; // 🔒 BLOQUAGE ENTRE LES SESSIONS
+
 function formatTime(sec) {
   const m = String(Math.floor(sec / 60)).padStart(2, "0");
   const s = String(sec % 60).padStart(2, "0");
   return `${m}:${s}`;
 }
 
-// 🎛️ boutons
 function getButtons() {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId("start").setLabel("▶ START").setStyle(ButtonStyle.Success),
@@ -41,7 +41,6 @@ function getButtons() {
   );
 }
 
-// 🎯 boutons
 client.on("interactionCreate", async interaction => {
   if (!interaction.isButton()) return;
 
@@ -61,12 +60,18 @@ client.on("interactionCreate", async interaction => {
   }
 });
 
-// 📥 messages
 client.on("messageCreate", message => {
-  if (!sessionActive) return;
   if (message.channel.id !== CHANNEL_ID) return;
   if (message.author.bot) return;
 
+  // 🔒 BLOQUAGE ENTRE SESSIONS
+  if (pauseBetween) {
+    if (message.content.includes("http")) {
+      return message.delete();
+    }
+  }
+
+  if (!sessionActive) return;
   if (!message.content.includes("http")) return;
 
   const isTrophyLink = message.content.startsWith("🏆");
@@ -84,17 +89,16 @@ client.on("messageCreate", message => {
   sessionMessages.push(message);
 });
 
-// 🔁 LOOP
 async function runLoop(channel) {
   if (sessionRunning) return;
   sessionRunning = true;
 
   while (sessionActive) {
 
+    pauseBetween = false;
     sessionMessages = [];
     let timeLeft = 60;
 
-    // IMAGE START
     await channel.send({
       files: ["https://i.ibb.co/6Jm36jvX/84-F407-FF-EB63-4-EB3-83-D9-553-A1-A1-B57-D6.png"]
     });
@@ -122,7 +126,6 @@ Pense à réagir aux liens des autres 🧡`
 
     await new Promise(r => setTimeout(r, 1500));
 
-    // 📊 ANALYSE FIX (CORRIGÉ)
     let participants = new Set();
     let reactedUsers = new Set();
     let starUsers = new Set();
@@ -136,12 +139,10 @@ Pense à réagir aux liens des autres 🧡`
         users.forEach(u => {
           if (u.bot) return;
 
-          // ⭐ lien sans rendre
           if (u.id === m.author.id && r.emoji.name === "⭐") {
             starUsers.add(u.id);
           }
 
-          // ✅ IMPORTANT : n'importe quelle réaction (même sur son propre lien)
           reactedUsers.add(u.id);
         });
       }
@@ -152,13 +153,16 @@ Pense à réagir aux liens des autres 🧡`
     let invalid = 0;
 
     participants.forEach(id => {
-      if (starUsers.has(id)) return;
+      // ⭐ = automatiquement à jour
+      if (starUsers.has(id)) {
+        valid++;
+        return;
+      }
 
       if (reactedUsers.has(id)) valid++;
       else invalid++;
     });
 
-    // 🏆 GAGNANT
     let winner = null;
     let max = 0;
 
@@ -181,12 +185,10 @@ Pense à réagir aux liens des autres 🧡`
       trophyExpire = Date.now() + 24 * 60 * 60 * 1000;
     }
 
-    // IMAGE STOP
     await channel.send({
       files: ["https://i.ibb.co/j9mGMjDm/AE44-C3-D4-5-F52-4-D45-AE27-409-BDF00-D67-B.png"]
     });
 
-    // RESULTAT
     await channel.send({
       content: `🛑 **SESSION TERMINÉE**
 👥 **${total} participants**
@@ -196,6 +198,9 @@ Pense à réagir aux liens des autres 🧡`
 ❌ ${invalid} pas à jour`,
       components: [getButtons()]
     });
+
+    // 🔒 ACTIVER LE BLOCAGE
+    pauseBetween = true;
 
     let next = 30;
 
