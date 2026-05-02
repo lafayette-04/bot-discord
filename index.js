@@ -15,7 +15,8 @@ const client = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildMessageReactions
+    GatewayIntentBits.GuildMessageReactions,
+    GatewayIntentBits.DirectMessages
   ]
 });
 
@@ -28,12 +29,28 @@ let trophyExpire = 0;
 
 let pauseBetween = false;
 
+// 📊 STOCKAGE STATS
+let userStats = {};
+
+function getUserStats(id) {
+  if (!userStats[id]) {
+    userStats[id] = {
+      participations: 0,
+      stars: 0,
+      trophies: 0
+    };
+  }
+  return userStats[id];
+}
+
+// ⏱️ format
 function formatTime(sec) {
   const m = String(Math.floor(sec / 60)).padStart(2, "0");
   const s = String(sec % 60).padStart(2, "0");
   return `${m}:${s}`;
 }
 
+// 🎛️ boutons
 function getButtons() {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId("start").setLabel("▶ START").setStyle(ButtonStyle.Success),
@@ -41,6 +58,7 @@ function getButtons() {
   );
 }
 
+// 🎯 boutons
 client.on("interactionCreate", async interaction => {
   if (!interaction.isButton()) return;
 
@@ -60,11 +78,37 @@ client.on("interactionCreate", async interaction => {
   }
 });
 
+// 📥 messages
 client.on("messageCreate", async message => {
-  if (message.channel.id !== CHANNEL_ID) return;
   if (message.author.bot) return;
 
-  // 🔒 blocage total
+  // 📊 COMMANDE STATS
+  if (message.content.toLowerCase() === "bunny stats") {
+
+    const stats = getUserStats(message.author.id);
+
+    try {
+      await message.author.send(`📊 **Tes statistiques ${message.author.username}**
+
+✅ Semaine validée 🥳
+🔥 ${stats.participations} participations
+
+🎉 ${stats.trophies} bonus
+⭐️ ${stats.stars} liens sans rendre
+💶 0 ventes aujourd’hui
+📅 0 ventes semaine`);
+
+      await message.reply("📩 Stats envoyées en privé !");
+    } catch {
+      await message.reply("❌ Active tes messages privés !");
+    }
+
+    return;
+  }
+
+  if (message.channel.id !== CHANNEL_ID) return;
+
+  // 🔒 blocage pendant pause
   if (pauseBetween) return message.delete();
 
   if (!sessionActive) return;
@@ -82,7 +126,7 @@ client.on("messageCreate", async message => {
 
   const cleanLink = leboncoinLinks[0];
 
-  // 🚫 anti doublon
+  // anti doublon
   if (sessionMessages.some(m => m.content.includes(cleanLink))) {
     return message.delete();
   }
@@ -99,8 +143,8 @@ client.on("messageCreate", async message => {
     if (userLinks >= 1) return message.delete();
   }
 
-  // ✂️ nettoie texte
-  if (message.content !== cleanLink && !message.content.startsWith("🏆")) {
+  // nettoie texte
+  if (message.content !== cleanLink && !message.content.startsWith("🏆") && !message.content.startsWith("⭐")) {
     await message.delete();
     const newMsg = await message.channel.send(cleanLink);
     sessionMessages.push(newMsg);
@@ -110,6 +154,7 @@ client.on("messageCreate", async message => {
   sessionMessages.push(message);
 });
 
+// 🔁 LOOP
 async function runLoop(channel) {
   if (sessionRunning) return;
   sessionRunning = true;
@@ -147,6 +192,7 @@ Pense à réagir aux liens des autres 🧡`
 
     await new Promise(r => setTimeout(r, 1500));
 
+    // 📊 ANALYSE + STATS
     let participants = new Set();
     let reactedUsers = new Set();
     let starUsers = new Set();
@@ -154,9 +200,16 @@ Pense à réagir aux liens des autres 🧡`
 
     for (const m of sessionMessages) {
 
+      const stats = getUserStats(m.author.id);
+      stats.participations++;
+
       const content = m.content.trim();
       const isStarOnly = content === "⭐" || content === "⭐️";
       const isStarLink = content.startsWith("⭐") && content.includes("http");
+
+      if (isStarOnly || isStarLink) {
+        stats.stars++;
+      }
 
       for (const r of m.reactions.cache.values()) {
         const users = await r.users.fetch();
@@ -213,6 +266,9 @@ Pense à réagir aux liens des autres 🧡`
     if (winner) {
       trophyUser = winner.id;
       trophyExpire = Date.now() + 24 * 60 * 60 * 1000;
+
+      const stats = getUserStats(winner.id);
+      stats.trophies++;
     }
 
     await channel.send({
