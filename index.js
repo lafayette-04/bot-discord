@@ -26,7 +26,7 @@ let sessionMessages = [];
 let trophyUser = null;
 let trophyExpire = 0;
 
-let pauseBetween = false; // 🔒 BLOQUAGE ENTRE LES SESSIONS
+let pauseBetween = false;
 
 function formatTime(sec) {
   const m = String(Math.floor(sec / 60)).padStart(2, "0");
@@ -64,11 +64,9 @@ client.on("messageCreate", message => {
   if (message.channel.id !== CHANNEL_ID) return;
   if (message.author.bot) return;
 
-  // 🔒 BLOQUAGE ENTRE SESSIONS
+  // 🔒 BLOQUAGE TOTAL ENTRE LES SESSIONS
   if (pauseBetween) {
-    if (message.content.includes("http")) {
-      return message.delete();
-    }
+    return message.delete();
   }
 
   if (!sessionActive) return;
@@ -131,7 +129,8 @@ Pense à réagir aux liens des autres 🧡`
     let starUsers = new Set();
 
     for (const m of sessionMessages) {
-      participants.add(m.author.id);
+
+      let hasStar = false;
 
       for (const r of m.reactions.cache.values()) {
         const users = await r.users.fetch();
@@ -141,10 +140,16 @@ Pense à réagir aux liens des autres 🧡`
 
           if (u.id === m.author.id && r.emoji.name === "⭐") {
             starUsers.add(u.id);
+            hasStar = true;
           }
 
           reactedUsers.add(u.id);
         });
+      }
+
+      // ⭐ EXCLU → pas participant
+      if (!hasStar) {
+        participants.add(m.author.id);
       }
     }
 
@@ -153,12 +158,6 @@ Pense à réagir aux liens des autres 🧡`
     let invalid = 0;
 
     participants.forEach(id => {
-      // ⭐ = automatiquement à jour
-      if (starUsers.has(id)) {
-        valid++;
-        return;
-      }
-
       if (reactedUsers.has(id)) valid++;
       else invalid++;
     });
@@ -199,7 +198,7 @@ Pense à réagir aux liens des autres 🧡`
       components: [getButtons()]
     });
 
-    // 🔒 ACTIVER LE BLOCAGE
+    // 🔒 ACTIVE LE BLOCAGE TOTAL
     pauseBetween = true;
 
     let next = 30;
