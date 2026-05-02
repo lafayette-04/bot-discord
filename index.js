@@ -134,7 +134,7 @@ client.on("messageCreate", async message => {
 
   let userLinks = sessionMessages.filter(m => m.author.id === message.author.id).length;
 
-  // 🎉 BONUS
+  // 🎉 BONUS (2e lien)
   if (userLinks >= 1 && !isTrophyLink && !isStarLink) {
     if (stats.trophies > 0) {
       stats.trophies--;
@@ -146,7 +146,7 @@ client.on("messageCreate", async message => {
     }
   }
 
-  // ⭐ ETOILE
+  // ⭐ LIEN SANS RENDRE
   if (isStarLink) {
     if (stats.stars > 0) {
       stats.stars--;
@@ -176,5 +176,154 @@ client.on("messageCreate", async message => {
   sessionMessages.push(message);
 });
 
-// ⚠️ le reste de ton code (runLoop etc) reste EXACTEMENT identique
+// 🔁 LOOP (INCHANGÉ)
+async function runLoop(channel) {
+  if (sessionRunning) return;
+  sessionRunning = true;
+
+  while (sessionActive) {
+
+    pauseBetween = false;
+    sessionMessages = [];
+    let timeLeft = 60;
+
+    await channel.send({
+      files: ["https://i.ibb.co/6Jm36jvX/84-F407-FF-EB63-4-EB3-83-D9-553-A1-A1-B57-D6.png"]
+    });
+
+    let msg = await channel.send({
+      content: `💎 **SESSION ARTICLE (1 minute)**
+⏱️ Temps restant : **01:00**
+🎉 ⭐ et 🏆 autorisés
+Pense à réagir aux liens des autres 🧡`
+    });
+
+    while (timeLeft > 0 && sessionActive) {
+      await new Promise(r => setTimeout(r, 1000));
+      timeLeft--;
+
+      await msg.edit({
+        content: `💎 **SESSION ARTICLE (1 minute)**
+⏱️ Temps restant : **${formatTime(timeLeft)}**
+🎉 ⭐ et 🏆 autorisés
+Pense à réagir aux liens des autres 🧡`
+      });
+    }
+
+    if (!sessionActive) break;
+
+    await new Promise(r => setTimeout(r, 1500));
+
+    let participants = new Set();
+    let reactedUsers = new Set();
+    let starUsers = new Set();
+    let starLinkUsers = new Set();
+
+    for (const m of sessionMessages) {
+
+      const stats = getUserStats(m.author.id);
+      stats.participations++;
+
+      if (m.content.startsWith("⭐")) {
+        stats.stars++;
+      }
+
+      const content = m.content.trim();
+      const isStarOnly = content === "⭐" || content === "⭐️";
+      const isStarLink = content.startsWith("⭐") && content.includes("http");
+
+      for (const r of m.reactions.cache.values()) {
+        const users = await r.users.fetch();
+        users.forEach(u => {
+          if (u.bot) return;
+          reactedUsers.add(u.id);
+        });
+      }
+
+      if (isStarOnly) {
+        starUsers.add(m.author.id);
+        continue;
+      }
+
+      if (isStarLink) {
+        starLinkUsers.add(m.author.id);
+        participants.add(m.author.id);
+        continue;
+      }
+
+      participants.add(m.author.id);
+    }
+
+    let total = participants.size;
+    let valid = 0;
+    let invalid = 0;
+
+    participants.forEach(id => {
+      if (starUsers.has(id)) return;
+      if (starLinkUsers.has(id)) return;
+
+      if (reactedUsers.has(id)) valid++;
+      else invalid++;
+    });
+
+    let winner = null;
+    let max = 0;
+
+    for (const m of sessionMessages) {
+      let count = 0;
+
+      for (const r of m.reactions.cache.values()) {
+        const users = await r.users.fetch();
+        count += users.filter(u => !u.bot && u.id !== m.author.id).size;
+      }
+
+      if (count > max) {
+        max = count;
+        winner = m.author;
+      }
+    }
+
+    if (winner) {
+      trophyUser = winner.id;
+      trophyExpire = Date.now() + 24 * 60 * 60 * 1000;
+
+      const stats = getUserStats(winner.id);
+      stats.trophies++;
+    }
+
+    await channel.send({
+      files: ["https://i.ibb.co/j9mGMjDm/AE44-C3-D4-5-F52-4-D45-AE27-409-BDF00-D67-B.png"]
+    });
+
+    await channel.send({
+      content: `🛑 **SESSION TERMINÉE**
+👥 **${total} participants**
+⭐ ${starUsers.size + starLinkUsers.size}
+🏆 ${winner ? `<@${winner.id}>` : "Personne"}
+✅ ${valid} à jour
+❌ ${invalid} pas à jour`,
+      components: [getButtons()]
+    });
+
+    pauseBetween = true;
+
+    let next = 30;
+
+    let nextMsg = await channel.send({
+      content: `⏳ Prochaine session dans : ${formatTime(next)}`
+    });
+
+    while (next > 0 && sessionActive) {
+      await new Promise(r => setTimeout(r, 1000));
+      next--;
+
+      await nextMsg.edit({
+        content: `⏳ Prochaine session dans : ${formatTime(next)}`
+      });
+    }
+  }
+
+  sessionRunning = false;
+}
+
 client.login(TOKEN);
