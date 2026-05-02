@@ -32,7 +32,7 @@ let pauseBetween = false;
 // 📊 STATS
 let userStats = {};
 
-// ⚠️ WARN / BAN
+// ⚠️ WARN / BAN (AJOUT)
 let userWarnings = {};
 let userBlocked = {};
 
@@ -83,7 +83,7 @@ client.on("messageCreate", async message => {
 
   if (message.author.bot) return;
 
-  // ⛔ blocage 24h
+  // ⛔ blocage 24h (AJOUT)
   if (userBlocked[message.author.id] && Date.now() < userBlocked[message.author.id]) {
     return message.delete();
   }
@@ -114,6 +114,7 @@ client.on("messageCreate", async message => {
 
   if (message.channel.id !== CHANNEL_ID) return;
 
+  // 🔒 blocage total
   if (pauseBetween) return message.delete();
 
   if (!sessionActive) return;
@@ -193,12 +194,84 @@ Pense à réagir aux liens des autres 🧡`
     await new Promise(r => setTimeout(r, 1500));
 
     let participants = new Set();
+    let reactedUsers = new Set();
+    let starUsers = new Set();
+    let starLinkUsers = new Set();
 
     for (const m of sessionMessages) {
+
+      const stats = getUserStats(m.author.id);
+      stats.participations++;
+
+      if (m.content.startsWith("⭐")) {
+        stats.stars++;
+      }
+
+      const content = m.content.trim();
+      const isStarOnly = content === "⭐" || content === "⭐️";
+      const isStarLink = content.startsWith("⭐") && content.includes("http");
+
+      for (const r of m.reactions.cache.values()) {
+        const users = await r.users.fetch();
+
+        users.forEach(u => {
+          if (u.bot) return;
+          reactedUsers.add(u.id);
+        });
+      }
+
+      if (isStarOnly) {
+        starUsers.add(m.author.id);
+        continue;
+      }
+
+      if (isStarLink) {
+        starLinkUsers.add(m.author.id);
+        participants.add(m.author.id);
+        continue;
+      }
+
       participants.add(m.author.id);
     }
 
-    // 📍 heure session
+    let total = participants.size;
+    let valid = 0;
+    let invalid = 0;
+
+    participants.forEach(id => {
+      if (starUsers.has(id)) return;
+      if (starLinkUsers.has(id)) return;
+
+      if (reactedUsers.has(id)) valid++;
+      else invalid++;
+    });
+
+    let winner = null;
+    let max = 0;
+
+    for (const m of sessionMessages) {
+      let count = 0;
+
+      for (const r of m.reactions.cache.values()) {
+        const users = await r.users.fetch();
+        count += users.filter(u => !u.bot && u.id !== m.author.id).size;
+      }
+
+      if (count > max) {
+        max = count;
+        winner = m.author;
+      }
+    }
+
+    if (winner) {
+      trophyUser = winner.id;
+      trophyExpire = Date.now() + 24 * 60 * 60 * 1000;
+
+      const stats = getUserStats(winner.id);
+      stats.trophies++;
+    }
+
+    // 🔽 AJOUT DM + WARN
     const sessionTime = new Date().toLocaleTimeString("fr-FR", { hour: '2-digit', minute: '2-digit' });
 
     let userMissing = {};
@@ -219,7 +292,6 @@ Pense à réagir aux liens des autres 🧡`
       }
     }
 
-    // 📩 DM après 2 min
     setTimeout(async () => {
 
       for (const userId in userMissing) {
@@ -246,9 +318,10 @@ Tu n’étais toujours pas à jour 10 min après la fin de la session **Session 
 Avertissements ${userWarnings[userId]} sur 3.`);
 
             if (userWarnings[userId] >= 3) {
+
               userBlocked[userId] = Date.now() + (24 * 60 * 60 * 1000);
 
-              await user.send(`⛔ Tu es bloqué(e) dans le boost pendant 24h car tu as atteint 3 avertissements.`);
+              await user.send(`⛔ Tu es bloqué(e) dans #🔥boost pendant 24h car tu as atteint 3 avertissements.`);
             }
 
           }, 10 * 60 * 1000);
@@ -264,7 +337,11 @@ Avertissements ${userWarnings[userId]} sur 3.`);
 
     await channel.send({
       content: `🛑 **SESSION TERMINÉE**
-👥 **${participants.size} participants**`,
+👥 **${total} participants**
+⭐ ${starUsers.size + starLinkUsers.size}
+🏆 ${winner ? `<@${winner.id}>` : "Personne"}
+✅ ${valid} à jour
+❌ ${invalid} pas à jour`,
       components: [getButtons()]
     });
 
