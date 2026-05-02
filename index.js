@@ -81,12 +81,10 @@ client.on("messageCreate", async message => {
 
   if (message.author.bot) return;
 
-  // ⛔ blocage 24h
   if (userBlocked[message.author.id] && Date.now() < userBlocked[message.author.id]) {
     return message.delete();
   }
 
-  // 📊 COMMANDE STATS
   if (message.content.toLowerCase() === "bunny stats") {
 
     const stats = getUserStats(message.author.id);
@@ -134,39 +132,36 @@ client.on("messageCreate", async message => {
 
   let userLinks = sessionMessages.filter(m => m.author.id === message.author.id).length;
 
-  // 🎉 BONUS (2e lien)
-  if (userLinks >= 1 && !isTrophyLink && !isStarLink) {
-    if (stats.trophies > 0) {
-      stats.trophies--;
-    } else {
-      try {
-        await message.author.send("❌ Vous n’avez pas de bonus 🎉");
-      } catch {}
-      return message.delete();
-    }
-  }
-
-  // ⭐ LIEN SANS RENDRE
+  // ⭐ lien sans rendre
   if (isStarLink) {
     if (stats.stars > 0) {
       stats.stars--;
     } else {
-      try {
-        await message.author.send("❌ Vous n’avez pas de lien sans rendre ⭐");
-      } catch {}
+      try { await message.author.send("❌ Vous n’avez pas de lien sans rendre ⭐"); } catch {}
       return message.delete();
     }
   }
 
+  // 🎉 deuxième lien uniquement si déjà 1 lien
+  if (userLinks >= 1 && !isStarLink && !isTrophyLink) {
+    if (stats.trophies > 0) {
+      stats.trophies--;
+    } else {
+      try { await message.author.send("❌ Vous n’avez pas de bonus 🎉"); } catch {}
+      return message.delete();
+    }
+  }
+
+  // 🏆 logique conservée
   if (message.author.id === trophyUser && Date.now() < trophyExpire) {
     if (userLinks === 1 && !isTrophyLink) return message.delete();
     if (userLinks >= 2) return message.delete();
   } else {
     if (isTrophyLink) return message.delete();
-    if (userLinks >= 1 && !isStarLink) return message.delete();
+    if (userLinks >= 2) return message.delete(); // 🔥 correction
   }
 
-  if (message.content !== cleanLink && !message.content.startsWith("🏆") && !message.content.startsWith("⭐")) {
+  if (message.content !== cleanLink && !isTrophyLink && !isStarLink) {
     await message.delete();
     const newMsg = await message.channel.send(cleanLink);
     sessionMessages.push(newMsg);
@@ -176,7 +171,7 @@ client.on("messageCreate", async message => {
   sessionMessages.push(message);
 });
 
-// 🔁 LOOP (INCHANGÉ)
+// 🔁 LOOP INCHANGÉ
 async function runLoop(channel) {
   if (sessionRunning) return;
   sessionRunning = true;
