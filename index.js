@@ -122,7 +122,7 @@ Pense à réagir aux liens des autres 🧡`
 
     await new Promise(r => setTimeout(r, 1500));
 
-    // 📊 ANALYSE FIX
+    // 📊 ANALYSE FIX (CORRIGÉ)
     let participants = new Set();
     let reactedUsers = new Set();
     let starUsers = new Set();
@@ -136,15 +136,13 @@ Pense à réagir aux liens des autres 🧡`
         users.forEach(u => {
           if (u.bot) return;
 
-          // ⭐ sur son propre lien
+          // ⭐ lien sans rendre
           if (u.id === m.author.id && r.emoji.name === "⭐") {
             starUsers.add(u.id);
           }
 
-          // ✅ réaction sur autre lien
-          if (u.id !== m.author.id) {
-            reactedUsers.add(u.id);
-          }
+          // ✅ IMPORTANT : n'importe quelle réaction (même sur son propre lien)
+          reactedUsers.add(u.id);
         });
       }
     }
