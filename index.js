@@ -31,6 +31,8 @@ let pauseBetween = false;
 
 // 📊 STATS
 let userStats = {};
+
+// ⚠️ WARN / BAN
 let userWarnings = {};
 let userBlocked = {};
 
@@ -81,12 +83,12 @@ client.on("messageCreate", async message => {
 
   if (message.author.bot) return;
 
-  // 🚫 blocage si sanction
+  // ⛔ blocage 24h
   if (userBlocked[message.author.id] && Date.now() < userBlocked[message.author.id]) {
     return message.delete();
   }
 
-  // 📊 STATS COMMAND
+  // 📊 COMMANDE STATS
   if (message.content.toLowerCase() === "bunny stats") {
 
     const stats = getUserStats(message.author.id);
@@ -121,11 +123,15 @@ client.on("messageCreate", async message => {
 
   const leboncoinLinks = urls.filter(url => url.includes("leboncoin.fr"));
 
-  if (leboncoinLinks.length === 0) return message.delete();
+  if (leboncoinLinks.length === 0) {
+    return message.delete();
+  }
 
   const cleanLink = leboncoinLinks[0];
 
-  if (sessionMessages.some(m => m.content.includes(cleanLink))) return message.delete();
+  if (sessionMessages.some(m => m.content.includes(cleanLink))) {
+    return message.delete();
+  }
 
   const isTrophyLink = message.content.startsWith("🏆");
 
@@ -159,8 +165,6 @@ async function runLoop(channel) {
     sessionMessages = [];
     let timeLeft = 60;
 
-    const sessionTime = new Date().toLocaleTimeString("fr-FR", { hour: '2-digit', minute: '2-digit' });
-
     await channel.send({
       files: ["https://i.ibb.co/6Jm36jvX/84-F407-FF-EB63-4-EB3-83-D9-553-A1-A1-B57-D6.png"]
     });
@@ -189,19 +193,22 @@ Pense à réagir aux liens des autres 🧡`
     await new Promise(r => setTimeout(r, 1500));
 
     let participants = new Set();
-    let userMissing = {};
 
     for (const m of sessionMessages) {
       participants.add(m.author.id);
     }
 
-    // 🔍 check réactions
+    // 📍 heure session
+    const sessionTime = new Date().toLocaleTimeString("fr-FR", { hour: '2-digit', minute: '2-digit' });
+
+    let userMissing = {};
+
     for (const m of sessionMessages) {
       for (const userId of participants) {
 
         if (m.author.id === userId) continue;
 
-        const reacted = m.reactions.cache.some(r => 
+        const reacted = m.reactions.cache.some(r =>
           r.users.cache.has(userId)
         );
 
@@ -212,7 +219,7 @@ Pense à réagir aux liens des autres 🧡`
       }
     }
 
-    // 📩 DM 2 minutes
+    // 📩 DM après 2 min
     setTimeout(async () => {
 
       for (const userId in userMissing) {
@@ -228,7 +235,6 @@ Liste des liens manquants :
 leboncoin prestige
 ${userMissing[userId].join("\n")}`);
 
-          // ⏱️ avertissement après 10 min
           setTimeout(async () => {
 
             userWarnings[userId] = (userWarnings[userId] || 0) + 1;
@@ -242,7 +248,7 @@ Avertissements ${userWarnings[userId]} sur 3.`);
             if (userWarnings[userId] >= 3) {
               userBlocked[userId] = Date.now() + (24 * 60 * 60 * 1000);
 
-              await user.send(`⛔ Tu es bloqué(e) du boost pendant 24h car tu as atteint 3 avertissements.`);
+              await user.send(`⛔ Tu es bloqué(e) dans le boost pendant 24h car tu as atteint 3 avertissements.`);
             }
 
           }, 10 * 60 * 1000);
@@ -257,7 +263,8 @@ Avertissements ${userWarnings[userId]} sur 3.`);
     });
 
     await channel.send({
-      content: `🛑 **SESSION TERMINÉE**`,
+      content: `🛑 **SESSION TERMINÉE**
+👥 **${participants.size} participants**`,
       components: [getButtons()]
     });
 
