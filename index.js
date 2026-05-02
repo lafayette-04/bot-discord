@@ -60,17 +60,32 @@ client.on("interactionCreate", async interaction => {
   }
 });
 
-client.on("messageCreate", message => {
+client.on("messageCreate", async message => {
   if (message.channel.id !== CHANNEL_ID) return;
   if (message.author.bot) return;
 
-  // 🔒 blocage total pendant les 30 sec
-  if (pauseBetween) {
+  // 🔒 blocage total
+  if (pauseBetween) return message.delete();
+
+  if (!sessionActive) return;
+
+  // 🔗 récupère liens
+  const urls = message.content.match(/https?:\/\/\S+/g);
+  if (!urls) return;
+
+  // filtre Leboncoin
+  const leboncoinLinks = urls.filter(url => url.includes("leboncoin.fr"));
+
+  if (leboncoinLinks.length === 0) {
     return message.delete();
   }
 
-  if (!sessionActive) return;
-  if (!message.content.includes("http")) return;
+  const cleanLink = leboncoinLinks[0];
+
+  // 🚫 anti doublon
+  if (sessionMessages.some(m => m.content.includes(cleanLink))) {
+    return message.delete();
+  }
 
   const isTrophyLink = message.content.startsWith("🏆");
 
@@ -82,6 +97,14 @@ client.on("messageCreate", message => {
   } else {
     if (isTrophyLink) return message.delete();
     if (userLinks >= 1) return message.delete();
+  }
+
+  // ✂️ nettoie texte
+  if (message.content !== cleanLink && !message.content.startsWith("🏆")) {
+    await message.delete();
+    const newMsg = await message.channel.send(cleanLink);
+    sessionMessages.push(newMsg);
+    return;
   }
 
   sessionMessages.push(message);
@@ -124,7 +147,6 @@ Pense à réagir aux liens des autres 🧡`
 
     await new Promise(r => setTimeout(r, 1500));
 
-    // 📊 ANALYSE FINALE
     let participants = new Set();
     let reactedUsers = new Set();
     let starUsers = new Set();
@@ -171,7 +193,6 @@ Pense à réagir aux liens des autres 🧡`
       else invalid++;
     });
 
-    // 🏆 gagnant
     let winner = null;
     let max = 0;
 
@@ -208,7 +229,6 @@ Pense à réagir aux liens des autres 🧡`
       components: [getButtons()]
     });
 
-    // 🔒 blocage activé
     pauseBetween = true;
 
     let next = 30;
