@@ -152,24 +152,15 @@ client.on("messageCreate", async message => {
     if (userLinks >= 2) return message.delete();
   }
 
-  // 🔥 BLOQUE TEXTE + LIEN (solution propre)
-  if (
-    message.content.trim() !== cleanLink &&
-    !message.content.startsWith("⭐") &&
-    !message.content.startsWith("🏆") &&
-    !message.content.startsWith("🎉")
-  ) {
-    try {
-      await message.author.send("❌ Envoie uniquement ton lien Leboncoin");
-    } catch {}
-
+  // ✅ CORRECTION : accepte texte + lien (ne supprime plus)
+  if (!message.content.includes(cleanLink)) {
     return message.delete();
   }
 
   sessionMessages.push(message);
 });
 
-// 🔁 LOOP (inchangé)
+// 🔁 LOOP
 async function runLoop(channel) {
   if (sessionRunning) return;
   sessionRunning = true;
