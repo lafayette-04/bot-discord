@@ -29,7 +29,10 @@ let trophyExpire = 0;
 
 let pauseBetween = false;
 
+// 📊 STATS
 let userStats = {};
+let userWarnings = {};
+let userBlocked = {};
 
 function getUserStats(id) {
   if (!userStats[id]) {
@@ -80,31 +83,51 @@ client.on("messageCreate", async message => {
 
   if (message.author.bot) return;
 
-  if (message.channel.id !== CHANNEL_ID) return;
-  if (pauseBetween) return message.delete();
-  if (!sessionActive) return;
-
-  const content = message.content.trim();
-
-  // 🔒 Autorise uniquement : emoji optionnel + lien Leboncoin
-  const regex = /^(⭐|🏆|🎉)?\s*https?:\/\/(www\.)?leboncoin\.fr\/.+$/;
-
-  if (!regex.test(content)) {
+  if (userBlocked[message.author.id] && Date.now() < userBlocked[message.author.id]) {
     return message.delete();
   }
 
-  const link = content.replace(/^(⭐|🏆|🎉)?\s*/, "");
+  if (message.content.toLowerCase() === "bunny stats") {
+
+    const stats = getUserStats(message.author.id);
+
+    try {
+      await message.author.send(`📊 **Tes statistiques ${message.author.username}**
+
+🔥 ${stats.participations} participations
+🎉 ${stats.trophies} bonus
+⭐️ ${stats.stars} liens sans rendre`);
+
+      await message.reply("📩 Je t’ai envoyé tes stats en privé !");
+    } catch {
+      await message.reply("❌ Active tes messages privés !");
+    }
+
+    return;
+  }
+
+  if (message.channel.id !== CHANNEL_ID) return;
+
+  if (pauseBetween) return message.delete();
+  if (!sessionActive) return;
+
+  const urls = message.content.match(/https?:\/\/\S+/g);
+  if (!urls) return message.delete();
+
+  const leboncoinLink = urls.find(url => url.includes("leboncoin.fr"));
+  if (!leboncoinLink) return message.delete();
+
+  const cleanLink = leboncoinLink;
 
   const stats = getUserStats(message.author.id);
 
-  const isStar = content.startsWith("⭐");
-  const isTrophy = content.startsWith("🏆");
-  const isBonus = content.startsWith("🎉");
+  const isTrophyLink = message.content.startsWith("🏆");
+  const isStarLink = message.content.startsWith("⭐");
+  const isBonusLink = message.content.startsWith("🎉");
 
   let userLinks = sessionMessages.filter(m => m.author.id === message.author.id).length;
 
-  // ⭐
-  if (isStar) {
+  if (isStarLink) {
     if (stats.stars > 0) {
       stats.stars--;
     } else {
@@ -113,8 +136,7 @@ client.on("messageCreate", async message => {
     }
   }
 
-  // 🎉 (2e lien)
-  if (userLinks >= 1 && !isStar && !isTrophy) {
+  if (userLinks >= 1 && !isStarLink && !isTrophyLink) {
     if (stats.trophies > 0) {
       stats.trophies--;
     } else {
@@ -123,23 +145,22 @@ client.on("messageCreate", async message => {
     }
   }
 
-  // limites
   if (message.author.id === trophyUser && Date.now() < trophyExpire) {
-    if (userLinks === 1 && !isTrophy) return message.delete();
+    if (userLinks === 1 && !isTrophyLink) return message.delete();
     if (userLinks >= 2) return message.delete();
   } else {
-    if (isTrophy) return message.delete();
+    if (isTrophyLink) return message.delete();
     if (userLinks >= 2) return message.delete();
   }
 
-  // 🔥 CLEAN MESSAGE (AVATAR CONSERVÉ)
-  let finalContent = link;
+  // 🔥 FIX AVATAR (MODIF ICI)
+  let finalContent = cleanLink;
 
-  if (isStar) finalContent = "⭐ " + link;
-  if (isTrophy) finalContent = "🏆 " + link;
-  if (isBonus) finalContent = "🎉 " + link;
+  if (isStarLink) finalContent = "⭐ " + cleanLink;
+  if (isTrophyLink) finalContent = "🏆 " + cleanLink;
+  if (isBonusLink) finalContent = "🎉 " + cleanLink;
 
-  if (content !== finalContent) {
+  if (message.content.trim() !== finalContent) {
     try {
       await message.edit(finalContent);
     } catch {}
@@ -148,6 +169,7 @@ client.on("messageCreate", async message => {
   sessionMessages.push(message);
 });
 
+// 🔁 LOOP (inchangé)
 async function runLoop(channel) {
   if (sessionRunning) return;
   sessionRunning = true;
@@ -163,9 +185,9 @@ async function runLoop(channel) {
     });
 
     let msg = await channel.send({
-      content: `💎 **SESSION ARTICLE**
-⏱️ 01:00
-🎉 ⭐ 🏆 autorisés`
+      content: `💎 **SESSION ARTICLE (1 minute)**
+⏱️ Temps restant : **01:00**
+🎉 ⭐ et 🏆 autorisés`
     });
 
     while (timeLeft > 0 && sessionActive) {
@@ -173,9 +195,9 @@ async function runLoop(channel) {
       timeLeft--;
 
       await msg.edit({
-        content: `💎 **SESSION ARTICLE**
-⏱️ ${formatTime(timeLeft)}
-🎉 ⭐ 🏆 autorisés`
+        content: `💎 **SESSION ARTICLE (1 minute)**
+⏱️ Temps restant : **${formatTime(timeLeft)}**
+🎉 ⭐ et 🏆 autorisés`
       });
     }
 
