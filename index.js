@@ -119,12 +119,18 @@ client.on("messageCreate", async message => {
   if (!urls) return;
 
   const leboncoinLink = urls.find(url => url.includes("leboncoin.fr"));
-
-  if (!leboncoinLink) {
-    return message.delete();
-  }
+  if (!leboncoinLink) return message.delete();
 
   const cleanLink = leboncoinLink;
+
+  // ✅ GARDER AVATAR → on supprime seulement si message incorrect
+  const allowed =
+    message.content.trim() === cleanLink ||
+    message.content.startsWith("⭐") ||
+    message.content.startsWith("🏆") ||
+    message.content.startsWith("🎉");
+
+  if (!allowed) return message.delete();
 
   const stats = getUserStats(message.author.id);
 
@@ -133,6 +139,7 @@ client.on("messageCreate", async message => {
 
   let userLinks = sessionMessages.filter(m => m.author.id === message.author.id).length;
 
+  // ⭐ lien sans rendre
   if (isStarLink) {
     if (stats.stars > 0) {
       stats.stars--;
@@ -142,6 +149,7 @@ client.on("messageCreate", async message => {
     }
   }
 
+  // 🎉 deuxième lien
   if (userLinks >= 1 && !isStarLink && !isTrophyLink) {
     if (stats.trophies > 0) {
       stats.trophies--;
@@ -159,21 +167,10 @@ client.on("messageCreate", async message => {
     if (userLinks >= 2) return message.delete();
   }
 
-  // 🔥 Nettoyage automatique du message
-  if (message.content.trim() !== cleanLink &&
-      !message.content.startsWith("⭐") &&
-      !message.content.startsWith("🏆") &&
-      !message.content.startsWith("🎉")) {
-
-    await message.delete();
-    const newMsg = await message.channel.send(cleanLink);
-    sessionMessages.push(newMsg);
-    return;
-  }
-
   sessionMessages.push(message);
 });
 
+// 🔁 LOOP
 async function runLoop(channel) {
   if (sessionRunning) return;
   sessionRunning = true;
