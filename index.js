@@ -66,14 +66,23 @@ client.on("interactionCreate", async interaction => {
   }
 
   if (interaction.customId === "start") {
+
+    await interaction.deferReply({ ephemeral: true }); // ✅ FIX
+
     sessionActive = true;
-    interaction.reply({ content: "🚀 Session lancée", ephemeral: true });
+
+    await interaction.editReply("🚀 Session lancée");
+
     runLoop(interaction.channel);
   }
 
   if (interaction.customId === "stop") {
+
+    await interaction.deferReply({ ephemeral: true }); // ✅ FIX
+
     sessionActive = false;
-    interaction.reply({ content: "🛑 Session arrêtée", ephemeral: true });
+
+    await interaction.editReply("🛑 Session arrêtée");
   }
 });
 
@@ -160,12 +169,9 @@ client.on("messageCreate", async message => {
     if (userLinks >= 2) return message.delete();
   }
 
+  // ✅ FIX AVATAR (on garde le message)
   if (message.content !== cleanLink && !isTrophyLink && !isStarLink) {
-  sessionMessages.push(message);
-  return;
-}
-    const newMsg = await message.channel.send(cleanLink);
-    sessionMessages.push(newMsg);
+    sessionMessages.push(message);
     return;
   }
 
@@ -220,7 +226,6 @@ Pense à réagir aux liens des autres 🧡`
       const stats = getUserStats(m.author.id);
       stats.participations++;
 
-      // 🎁 BONUS toutes les 2 participations
       if (stats.participations % 2 === 0) {
         stats.trophies++;
       }
