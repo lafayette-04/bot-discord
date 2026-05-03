@@ -29,6 +29,7 @@ let trophyExpire = 0;
 
 let pauseBetween = false;
 
+// 📊 STATS
 let userStats = {};
 let userWarnings = {};
 let userBlocked = {};
@@ -65,16 +66,14 @@ client.on("interactionCreate", async interaction => {
   }
 
   if (interaction.customId === "start") {
-    await interaction.deferReply({ ephemeral: true });
     sessionActive = true;
-    await interaction.editReply("🚀 Session lancée");
+    interaction.reply({ content: "🚀 Session lancée", ephemeral: true });
     runLoop(interaction.channel);
   }
 
   if (interaction.customId === "stop") {
-    await interaction.deferReply({ ephemeral: true });
     sessionActive = false;
-    await interaction.editReply("🛑 Session arrêtée");
+    interaction.reply({ content: "🛑 Session arrêtée", ephemeral: true });
   }
 });
 
@@ -93,9 +92,13 @@ client.on("messageCreate", async message => {
     try {
       await message.author.send(`📊 **Tes statistiques ${message.author.username}**
 
+✅ Semaine validée 🥳
 🔥 ${stats.participations} participations
+
 🎉 ${stats.trophies} bonus
-⭐ ${stats.stars} liens sans rendre`);
+⭐️ ${stats.stars} liens sans rendre
+💶 0 ventes aujourd’hui
+📅 0 ventes semaine`);
 
       await message.reply("📩 Je t’ai envoyé tes stats en privé !");
     } catch {
@@ -111,21 +114,26 @@ client.on("messageCreate", async message => {
   if (!sessionActive) return;
 
   const urls = message.content.match(/https?:\/\/\S+/g);
-  if (!urls) return message.delete();
+  if (!urls) return;
 
-  const link = urls.find(url => url.includes("leboncoin.fr"));
-  if (!link) return message.delete();
+  const leboncoinLinks = urls.filter(url => url.includes("leboncoin.fr"));
+  if (leboncoinLinks.length === 0) return message.delete();
+
+  const cleanLink = leboncoinLinks[0];
+
+  if (sessionMessages.some(m => m.content.includes(cleanLink))) {
+    return message.delete();
+  }
 
   const stats = getUserStats(message.author.id);
 
-  const isStar = message.content.startsWith("⭐");
-  const isTrophy = message.content.startsWith("🏆");
-  const isBonus = message.content.startsWith("🎉");
+  const isTrophyLink = message.content.startsWith("🏆");
+  const isStarLink = message.content.startsWith("⭐");
 
   let userLinks = sessionMessages.filter(m => m.author.id === message.author.id).length;
 
-  // ⭐
-  if (isStar) {
+  // ⭐ lien sans rendre
+  if (isStarLink) {
     if (stats.stars > 0) {
       stats.stars--;
     } else {
@@ -134,8 +142,8 @@ client.on("messageCreate", async message => {
     }
   }
 
-  // 🎉
-  if (userLinks >= 1 && !isStar && !isTrophy) {
+  // 🎉 deuxième lien uniquement si déjà 1 lien
+  if (userLinks >= 1 && !isStarLink && !isTrophyLink) {
     if (stats.trophies > 0) {
       stats.trophies--;
     } else {
@@ -144,31 +152,26 @@ client.on("messageCreate", async message => {
     }
   }
 
-  // limites
+  // 🏆 logique conservée
   if (message.author.id === trophyUser && Date.now() < trophyExpire) {
-    if (userLinks === 1 && !isTrophy) return message.delete();
+    if (userLinks === 1 && !isTrophyLink) return message.delete();
     if (userLinks >= 2) return message.delete();
   } else {
-    if (isTrophy) return message.delete();
-    if (userLinks >= 2) return message.delete();
+    if (isTrophyLink) return message.delete();
+    if (userLinks >= 2) return message.delete(); // 🔥 correction
   }
 
-  // 🔥 CLEAN SANS SUPPRIMER (AVATAR OK)
-  let finalContent = link;
-
-  if (isStar) finalContent = "⭐ " + link;
-  if (isTrophy) finalContent = "🏆 " + link;
-  if (isBonus) finalContent = "🎉 " + link;
-
-  if (message.content.trim() !== finalContent) {
-    try {
-      await message.edit(finalContent);
-    } catch {}
+  if (message.content !== cleanLink && !isTrophyLink && !isStarLink) {
+    await message.delete();
+    const newMsg = await message.channel.send(cleanLink);
+    sessionMessages.push(newMsg);
+    return;
   }
 
   sessionMessages.push(message);
 });
 
+// 🔁 LOOP INCHANGÉ
 async function runLoop(channel) {
   if (sessionRunning) return;
   sessionRunning = true;
@@ -186,7 +189,8 @@ async function runLoop(channel) {
     let msg = await channel.send({
       content: `💎 **SESSION ARTICLE (1 minute)**
 ⏱️ Temps restant : **01:00**
-🎉 ⭐ et 🏆 autorisés`
+🎉 ⭐ et 🏆 autorisés
+Pense à réagir aux liens des autres 🧡`
     });
 
     while (timeLeft > 0 && sessionActive) {
@@ -196,22 +200,122 @@ async function runLoop(channel) {
       await msg.edit({
         content: `💎 **SESSION ARTICLE (1 minute)**
 ⏱️ Temps restant : **${formatTime(timeLeft)}**
-🎉 ⭐ et 🏆 autorisés`
+🎉 ⭐ et 🏆 autorisés
+Pense à réagir aux liens des autres 🧡`
       });
     }
 
     if (!sessionActive) break;
+
+    await new Promise(r => setTimeout(r, 1500));
+
+    let participants = new Set();
+    let reactedUsers = new Set();
+    let starUsers = new Set();
+    let starLinkUsers = new Set();
+
+    for (const m of sessionMessages) {
+
+      const stats = getUserStats(m.author.id);
+      stats.participations++;
+
+      if (m.content.startsWith("⭐")) {
+        stats.stars++;
+      }
+
+      const content = m.content.trim();
+      const isStarOnly = content === "⭐" || content === "⭐️";
+      const isStarLink = content.startsWith("⭐") && content.includes("http");
+
+      for (const r of m.reactions.cache.values()) {
+        const users = await r.users.fetch();
+        users.forEach(u => {
+          if (u.bot) return;
+          reactedUsers.add(u.id);
+        });
+      }
+
+      if (isStarOnly) {
+        starUsers.add(m.author.id);
+        continue;
+      }
+
+      if (isStarLink) {
+        starLinkUsers.add(m.author.id);
+        participants.add(m.author.id);
+        continue;
+      }
+
+      participants.add(m.author.id);
+    }
+
+    let total = participants.size;
+    let valid = 0;
+    let invalid = 0;
+
+    participants.forEach(id => {
+      if (starUsers.has(id)) return;
+      if (starLinkUsers.has(id)) return;
+
+      if (reactedUsers.has(id)) valid++;
+      else invalid++;
+    });
+
+    let winner = null;
+    let max = 0;
+
+    for (const m of sessionMessages) {
+      let count = 0;
+
+      for (const r of m.reactions.cache.values()) {
+        const users = await r.users.fetch();
+        count += users.filter(u => !u.bot && u.id !== m.author.id).size;
+      }
+
+      if (count > max) {
+        max = count;
+        winner = m.author;
+      }
+    }
+
+    if (winner) {
+      trophyUser = winner.id;
+      trophyExpire = Date.now() + 24 * 60 * 60 * 1000;
+
+      const stats = getUserStats(winner.id);
+      stats.trophies++;
+    }
 
     await channel.send({
       files: ["https://i.ibb.co/j9mGMjDm/AE44-C3-D4-5-F52-4-D45-AE27-409-BDF00-D67-B.png"]
     });
 
     await channel.send({
-      content: `🛑 **SESSION TERMINÉE**`,
+      content: `🛑 **SESSION TERMINÉE**
+👥 **${total} participants**
+⭐ ${starUsers.size + starLinkUsers.size}
+🏆 ${winner ? `<@${winner.id}>` : "Personne"}
+✅ ${valid} à jour
+❌ ${invalid} pas à jour`,
       components: [getButtons()]
     });
 
     pauseBetween = true;
+
+    let next = 30;
+
+    let nextMsg = await channel.send({
+      content: `⏳ Prochaine session dans : ${formatTime(next)}`
+    });
+
+    while (next > 0 && sessionActive) {
+      await new Promise(r => setTimeout(r, 1000));
+      next--;
+
+      await nextMsg.edit({
+        content: `⏳ Prochaine session dans : ${formatTime(next)}`
+      });
+    }
   }
 
   sessionRunning = false;
