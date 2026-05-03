@@ -160,10 +160,9 @@ client.on("messageCreate", async message => {
     if (userLinks >= 2) return message.delete();
   }
 
+  // 🔥 FIX AVATAR (modif uniquement ici)
   if (message.content !== cleanLink && !isTrophyLink && !isStarLink) {
-    await message.delete();
-    const newMsg = await message.channel.send(cleanLink);
-    sessionMessages.push(newMsg);
+    sessionMessages.push(message);
     return;
   }
 
@@ -218,7 +217,6 @@ Pense à réagir aux liens des autres 🧡`
       const stats = getUserStats(m.author.id);
       stats.participations++;
 
-      // 🎁 BONUS toutes les 2 participations
       if (stats.participations % 2 === 0) {
         stats.trophies++;
       }
