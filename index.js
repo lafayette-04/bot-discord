@@ -66,14 +66,16 @@ client.on("interactionCreate", async interaction => {
   }
 
   if (interaction.customId === "start") {
+    await interaction.deferReply({ ephemeral: true });
     sessionActive = true;
-    interaction.reply({ content: "🚀 Session lancée", ephemeral: true });
+    await interaction.editReply("🚀 Session lancée");
     runLoop(interaction.channel);
   }
 
   if (interaction.customId === "stop") {
+    await interaction.deferReply({ ephemeral: true });
     sessionActive = false;
-    interaction.reply({ content: "🛑 Session arrêtée", ephemeral: true });
+    await interaction.editReply("🛑 Session arrêtée");
   }
 });
 
@@ -81,12 +83,10 @@ client.on("messageCreate", async message => {
 
   if (message.author.bot) return;
 
-  // ⛔ blocage 24h
   if (userBlocked[message.author.id] && Date.now() < userBlocked[message.author.id]) {
     return message.delete();
   }
 
-  // 📊 COMMANDE STATS
   if (message.content.toLowerCase() === "bunny stats") {
 
     const stats = getUserStats(message.author.id);
@@ -94,14 +94,9 @@ client.on("messageCreate", async message => {
     try {
       await message.author.send(`📊 **Tes statistiques ${message.author.username}**
 
-✅ Semaine validée 🥳
 🔥 ${stats.participations} participations
-
 🎉 ${stats.trophies} bonus
-⭐️ ${stats.stars} liens sans rendre
-💶 0 ventes aujourd’hui
-📅 0 ventes semaine`);
-
+⭐️ ${stats.stars} liens sans rendre`);
       await message.reply("📩 Je t’ai envoyé tes stats en privé !");
     } catch {
       await message.reply("❌ Active tes messages privés !");
@@ -116,16 +111,12 @@ client.on("messageCreate", async message => {
   if (!sessionActive) return;
 
   const urls = message.content.match(/https?:\/\/\S+/g);
-  if (!urls) return;
+  if (!urls) return message.delete();
 
   const leboncoinLinks = urls.filter(url => url.includes("leboncoin.fr"));
   if (leboncoinLinks.length === 0) return message.delete();
 
   const cleanLink = leboncoinLinks[0];
-
-  if (sessionMessages.some(m => m.content.includes(cleanLink))) {
-    return message.delete();
-  }
 
   const stats = getUserStats(message.author.id);
 
@@ -134,49 +125,51 @@ client.on("messageCreate", async message => {
 
   let userLinks = sessionMessages.filter(m => m.author.id === message.author.id).length;
 
-  // 🎉 BONUS (2e lien)
-  if (userLinks >= 1 && !isTrophyLink && !isStarLink) {
-    if (stats.trophies > 0) {
-      stats.trophies--;
-    } else {
-      try {
-        await message.author.send("❌ Vous n’avez pas de bonus 🎉");
-      } catch {}
-      return message.delete();
-    }
-  }
-
-  // ⭐ LIEN SANS RENDRE
+  // ⭐ lien sans rendre
   if (isStarLink) {
     if (stats.stars > 0) {
       stats.stars--;
     } else {
-      try {
-        await message.author.send("❌ Vous n’avez pas de lien sans rendre ⭐");
-      } catch {}
+      try { await message.author.send("❌ Vous n’avez pas de lien sans rendre ⭐"); } catch {}
+      return message.delete();
+    }
+  }
+
+  // 🎉 deuxième lien
+  if (userLinks >= 1 && !isStarLink && !isTrophyLink) {
+    if (stats.trophies > 0) {
+      stats.trophies--;
+    } else {
+      try { await message.author.send("❌ Vous n’avez pas de bonus 🎉"); } catch {}
       return message.delete();
     }
   }
 
   if (message.author.id === trophyUser && Date.now() < trophyExpire) {
-    if (userLinks === 1 && !isTrophyLink) return message.delete();
     if (userLinks >= 2) return message.delete();
   } else {
     if (isTrophyLink) return message.delete();
-    if (userLinks >= 1 && !isStarLink) return message.delete();
+    if (userLinks >= 2) return message.delete();
   }
 
-  if (message.content !== cleanLink && !message.content.startsWith("🏆") && !message.content.startsWith("⭐")) {
-    await message.delete();
-    const newMsg = await message.channel.send(cleanLink);
-    sessionMessages.push(newMsg);
-    return;
+  // 🔥 BLOQUE TEXTE + LIEN (solution propre)
+  if (
+    message.content.trim() !== cleanLink &&
+    !message.content.startsWith("⭐") &&
+    !message.content.startsWith("🏆") &&
+    !message.content.startsWith("🎉")
+  ) {
+    try {
+      await message.author.send("❌ Envoie uniquement ton lien Leboncoin");
+    } catch {}
+
+    return message.delete();
   }
 
   sessionMessages.push(message);
 });
 
-// 🔁 LOOP (INCHANGÉ)
+// 🔁 LOOP (inchangé)
 async function runLoop(channel) {
   if (sessionRunning) return;
   sessionRunning = true;
@@ -203,124 +196,16 @@ Pense à réagir aux liens des autres 🧡`
       timeLeft--;
 
       await msg.edit({
-        content: `💎 **SESSION ARTICLE (1 minute)**
-⏱️ Temps restant : **${formatTime(timeLeft)}**
-🎉 ⭐ et 🏆 autorisés
-Pense à réagir aux liens des autres 🧡`
+        content: `⏱️ Temps restant : ${formatTime(timeLeft)}`
       });
     }
 
-    if (!sessionActive) break;
-
-    await new Promise(r => setTimeout(r, 1500));
-
-    let participants = new Set();
-    let reactedUsers = new Set();
-    let starUsers = new Set();
-    let starLinkUsers = new Set();
-
-    for (const m of sessionMessages) {
-
-      const stats = getUserStats(m.author.id);
-      stats.participations++;
-
-      if (m.content.startsWith("⭐")) {
-        stats.stars++;
-      }
-
-      const content = m.content.trim();
-      const isStarOnly = content === "⭐" || content === "⭐️";
-      const isStarLink = content.startsWith("⭐") && content.includes("http");
-
-      for (const r of m.reactions.cache.values()) {
-        const users = await r.users.fetch();
-        users.forEach(u => {
-          if (u.bot) return;
-          reactedUsers.add(u.id);
-        });
-      }
-
-      if (isStarOnly) {
-        starUsers.add(m.author.id);
-        continue;
-      }
-
-      if (isStarLink) {
-        starLinkUsers.add(m.author.id);
-        participants.add(m.author.id);
-        continue;
-      }
-
-      participants.add(m.author.id);
-    }
-
-    let total = participants.size;
-    let valid = 0;
-    let invalid = 0;
-
-    participants.forEach(id => {
-      if (starUsers.has(id)) return;
-      if (starLinkUsers.has(id)) return;
-
-      if (reactedUsers.has(id)) valid++;
-      else invalid++;
-    });
-
-    let winner = null;
-    let max = 0;
-
-    for (const m of sessionMessages) {
-      let count = 0;
-
-      for (const r of m.reactions.cache.values()) {
-        const users = await r.users.fetch();
-        count += users.filter(u => !u.bot && u.id !== m.author.id).size;
-      }
-
-      if (count > max) {
-        max = count;
-        winner = m.author;
-      }
-    }
-
-    if (winner) {
-      trophyUser = winner.id;
-      trophyExpire = Date.now() + 24 * 60 * 60 * 1000;
-
-      const stats = getUserStats(winner.id);
-      stats.trophies++;
-    }
-
     await channel.send({
-      files: ["https://i.ibb.co/j9mGMjDm/AE44-C3-D4-5-F52-4-D45-AE27-409-BDF00-D67-B.png"]
-    });
-
-    await channel.send({
-      content: `🛑 **SESSION TERMINÉE**
-👥 **${total} participants**
-⭐ ${starUsers.size + starLinkUsers.size}
-🏆 ${winner ? `<@${winner.id}>` : "Personne"}
-✅ ${valid} à jour
-❌ ${invalid} pas à jour`,
+      content: `🛑 SESSION TERMINÉE`,
       components: [getButtons()]
     });
 
     pauseBetween = true;
-
-    let next = 30;
-
-    let nextMsg = await channel.send({
-      content: `⏳ Prochaine session dans : ${formatTime(next)}`
-    });
-
-    while (next > 0 && sessionActive) {
-      await new Promise(r => setTimeout(r, 1000));
-      next--;
-
-      await nextMsg.edit({
-        content: `⏳ Prochaine session dans : ${formatTime(next)}`
-      });
-    }
   }
 
   sessionRunning = false;
