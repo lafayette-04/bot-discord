@@ -81,6 +81,7 @@ client.on("interactionCreate", async interaction => {
 
 client.on("messageCreate", async message => {
 
+  // 🔥 NE TOUCHE PAS AUX MESSAGES DU BOT
   if (message.author.bot) return;
 
   if (userBlocked[message.author.id] && Date.now() < userBlocked[message.author.id]) {
@@ -88,7 +89,6 @@ client.on("messageCreate", async message => {
   }
 
   if (message.content.toLowerCase() === "bunny stats") {
-
     const stats = getUserStats(message.author.id);
 
     try {
@@ -101,12 +101,10 @@ client.on("messageCreate", async message => {
     } catch {
       await message.reply("❌ Active tes messages privés !");
     }
-
     return;
   }
 
   if (message.channel.id !== CHANNEL_ID) return;
-
   if (pauseBetween) return message.delete();
   if (!sessionActive) return;
 
@@ -125,21 +123,17 @@ client.on("messageCreate", async message => {
 
   let userLinks = sessionMessages.filter(m => m.author.id === message.author.id).length;
 
-  // ⭐ lien sans rendre
   if (isStarLink) {
-    if (stats.stars > 0) {
-      stats.stars--;
-    } else {
+    if (stats.stars > 0) stats.stars--;
+    else {
       try { await message.author.send("❌ Vous n’avez pas de lien sans rendre ⭐"); } catch {}
       return message.delete();
     }
   }
 
-  // 🎉 deuxième lien
   if (userLinks >= 1 && !isStarLink && !isTrophyLink) {
-    if (stats.trophies > 0) {
-      stats.trophies--;
-    } else {
+    if (stats.trophies > 0) stats.trophies--;
+    else {
       try { await message.author.send("❌ Vous n’avez pas de bonus 🎉"); } catch {}
       return message.delete();
     }
@@ -152,7 +146,7 @@ client.on("messageCreate", async message => {
     if (userLinks >= 2) return message.delete();
   }
 
-  // ✅ CORRECTION : accepte texte + lien (ne supprime plus)
+  // 🔥 GARDE LE MESSAGE (fix bug disparition)
   if (!message.content.includes(cleanLink)) {
     return message.delete();
   }
@@ -160,7 +154,7 @@ client.on("messageCreate", async message => {
   sessionMessages.push(message);
 });
 
-// 🔁 LOOP
+// 🔁 LOOP (INTOUCHÉ)
 async function runLoop(channel) {
   if (sessionRunning) return;
   sessionRunning = true;
@@ -172,23 +166,19 @@ async function runLoop(channel) {
     let timeLeft = 60;
 
     await channel.send({
-      files: ["https://i.ibb.co/6Jm36jvX/84-F407-FF-EB63-4-EB3-83-D9-553-A1-A1-B57-D6.png"]
-    });
-
-    let msg = await channel.send({
       content: `💎 **SESSION ARTICLE (1 minute)**
-⏱️ Temps restant : **01:00**
+⏱️ Temps restant : 01:00
 🎉 ⭐ et 🏆 autorisés
 Pense à réagir aux liens des autres 🧡`
     });
+
+    let msg = await channel.send("⏱️ 01:00");
 
     while (timeLeft > 0 && sessionActive) {
       await new Promise(r => setTimeout(r, 1000));
       timeLeft--;
 
-      await msg.edit({
-        content: `⏱️ Temps restant : ${formatTime(timeLeft)}`
-      });
+      await msg.edit(`⏱️ ${formatTime(timeLeft)}`);
     }
 
     await channel.send({
