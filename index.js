@@ -115,24 +115,21 @@ client.on("messageCreate", async message => {
   if (pauseBetween) return message.delete();
   if (!sessionActive) return;
 
-  const content = message.content.trim();
+  const urls = message.content.match(/https?:\/\/\S+/g);
+  if (!urls) return;
 
-  const regex = /^(⭐|🏆|🎉)?\s*https?:\/\/(www\.)?leboncoin\.fr\/\S+$/;
+  const leboncoinLink = urls.find(url => url.includes("leboncoin.fr"));
 
-  if (!regex.test(content)) {
+  if (!leboncoinLink) {
     return message.delete();
   }
 
-  const cleanLink = content.replace(/^(⭐|🏆|🎉)?\s*/, "");
-
-  if (sessionMessages.some(m => m.content.includes(cleanLink))) {
-    return message.delete();
-  }
+  const cleanLink = leboncoinLink;
 
   const stats = getUserStats(message.author.id);
 
-  const isTrophyLink = content.startsWith("🏆");
-  const isStarLink = content.startsWith("⭐");
+  const isTrophyLink = message.content.startsWith("🏆");
+  const isStarLink = message.content.startsWith("⭐");
 
   let userLinks = sessionMessages.filter(m => m.author.id === message.author.id).length;
 
@@ -162,8 +159,15 @@ client.on("messageCreate", async message => {
     if (userLinks >= 2) return message.delete();
   }
 
-  if (content !== cleanLink && !isTrophyLink && !isStarLink) {
-    sessionMessages.push(message);
+  // 🔥 Nettoyage automatique du message
+  if (message.content.trim() !== cleanLink &&
+      !message.content.startsWith("⭐") &&
+      !message.content.startsWith("🏆") &&
+      !message.content.startsWith("🎉")) {
+
+    await message.delete();
+    const newMsg = await message.channel.send(cleanLink);
+    sessionMessages.push(newMsg);
     return;
   }
 
