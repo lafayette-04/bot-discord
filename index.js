@@ -142,7 +142,7 @@ client.on("messageCreate", async message => {
     }
   }
 
-  // 🎉 deuxième lien uniquement si déjà 1 lien
+  // 🎉 deuxième lien
   if (userLinks >= 1 && !isStarLink && !isTrophyLink) {
     if (stats.trophies > 0) {
       stats.trophies--;
@@ -152,13 +152,12 @@ client.on("messageCreate", async message => {
     }
   }
 
-  // 🏆 logique conservée
   if (message.author.id === trophyUser && Date.now() < trophyExpire) {
     if (userLinks === 1 && !isTrophyLink) return message.delete();
     if (userLinks >= 2) return message.delete();
   } else {
     if (isTrophyLink) return message.delete();
-    if (userLinks >= 2) return message.delete(); // 🔥 correction
+    if (userLinks >= 2) return message.delete();
   }
 
   if (message.content !== cleanLink && !isTrophyLink && !isStarLink) {
@@ -171,7 +170,7 @@ client.on("messageCreate", async message => {
   sessionMessages.push(message);
 });
 
-// 🔁 LOOP INCHANGÉ
+// 🔁 LOOP
 async function runLoop(channel) {
   if (sessionRunning) return;
   sessionRunning = true;
@@ -218,6 +217,11 @@ Pense à réagir aux liens des autres 🧡`
 
       const stats = getUserStats(m.author.id);
       stats.participations++;
+
+      // 🎁 BONUS toutes les 2 participations
+      if (stats.participations % 2 === 0) {
+        stats.trophies++;
+      }
 
       if (m.content.startsWith("⭐")) {
         stats.stars++;
