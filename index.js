@@ -125,10 +125,16 @@ client.on("messageCreate", async message => {
   const urls = message.content.match(/https?:\/\/\S+/g);
   if (!urls) return;
 
-  const leboncoinLinks = urls.filter(url => url.includes("leboncoin.fr"));
-  if (leboncoinLinks.length === 0) return message.delete();
+  const content = message.content.trim();
 
-  const cleanLink = leboncoinLinks[0];
+// autorise seulement : lien OU ⭐ + lien OU 🏆 + lien
+const regex = /^(⭐|🏆|🎉)?\s*https:\/\/www\.leboncoin\.fr\/\S+$/;
+
+if (!regex.test(content)) {
+  return message.delete();
+}
+
+const cleanLink = content.replace(/^(⭐|🏆)?\s*/, "");
 
   if (sessionMessages.some(m => m.content.includes(cleanLink))) {
     return message.delete();
