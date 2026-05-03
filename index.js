@@ -3,12 +3,18 @@ const {
   GatewayIntentBits, 
   ActionRowBuilder, 
   ButtonBuilder, 
-  ButtonStyle 
+  ButtonStyle,
+  WebhookClient
 } = require('discord.js');
 
 const TOKEN = process.env.TOKEN;
 const CHANNEL_ID = "1496696155541864633";
 const OWNER_ID = "872925370314260490";
+
+// 🔥 MET TON WEBHOOK ICI
+const webhook = new WebhookClient({
+  url: "WEBHOOK_URL"
+});
 
 const client = new Client({
   intents: [
@@ -130,7 +136,7 @@ client.on("messageCreate", async message => {
     if (userLinks >= 2) return message.delete();
   }
 
-  // 🔥 LOGIQUE QUE TU VEUX
+  // 🔥 WEBHOOK CLEAN
   const isClean =
     message.content.trim() === cleanLink ||
     message.content.startsWith("⭐") ||
@@ -139,8 +145,20 @@ client.on("messageCreate", async message => {
 
   if (!isClean) {
     await message.delete();
-    const newMsg = await message.channel.send(cleanLink);
-    sessionMessages.push(newMsg);
+
+    const sent = await webhook.send({
+      content: cleanLink,
+      username: message.member?.displayName || message.author.username,
+      avatarURL: message.author.displayAvatarURL()
+    });
+
+    sessionMessages.push({
+      author: message.author,
+      content: cleanLink,
+      reactions: sent.reactions,
+      id: sent.id
+    });
+
     return;
   }
 
@@ -186,20 +204,13 @@ Pense à réagir aux liens des autres 🧡`
     await new Promise(r => setTimeout(r, 1500));
 
     let participants = new Set();
-    let reactedUsers = new Set();
 
     for (const m of sessionMessages) {
-
       const stats = getUserStats(m.author.id);
       stats.participations++;
 
-      if (stats.participations % 2 === 0) stats.trophies++;
-
-      for (const r of m.reactions.cache.values()) {
-        const users = await r.users.fetch();
-        users.forEach(u => {
-          if (!u.bot) reactedUsers.add(u.id);
-        });
+      if (stats.participations % 2 === 0) {
+        stats.trophies++;
       }
 
       participants.add(m.author.id);
