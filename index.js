@@ -128,7 +128,7 @@ client.on("messageCreate", async message => {
   const content = message.content.trim();
 
 // autorise seulement : lien OU ⭐ + lien OU 🏆 + lien
-const regex = /^(⭐|🏆|🎉)?\s*https:\/\/www\.leboncoin\.fr\/\S+$/;
+const regex = /^(⭐|🏆|🎉)?\s*https?:\/\/(www\.)?leboncoin\.fr\/.+$/;
 
 if (!regex.test(content)) {
   return message.delete();
