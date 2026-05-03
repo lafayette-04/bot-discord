@@ -92,14 +92,9 @@ client.on("messageCreate", async message => {
     try {
       await message.author.send(`📊 **Tes statistiques ${message.author.username}**
 
-✅ Semaine validée 🥳
 🔥 ${stats.participations} participations
-
 🎉 ${stats.trophies} bonus
-⭐️ ${stats.stars} liens sans rendre
-💶 0 ventes aujourd’hui
-📅 0 ventes semaine`);
-
+⭐️ ${stats.stars} liens sans rendre`);
       await message.reply("📩 Je t’ai envoyé tes stats en privé !");
     } catch {
       await message.reply("❌ Active tes messages privés !");
@@ -209,13 +204,10 @@ Pense à réagir aux liens des autres 🧡`
     await new Promise(r => setTimeout(r, 1500));
 
     let participants = new Set();
-    let reactedUsers = new Set();
-    let starUsers = new Set();
-    let starLinkUsers = new Set();
 
     for (const m of sessionMessages) {
-
       const stats = getUserStats(m.author.id);
+
       stats.participations++;
 
       // 🎁 BONUS toutes les 2 participations
@@ -223,71 +215,7 @@ Pense à réagir aux liens des autres 🧡`
         stats.trophies++;
       }
 
-      if (m.content.startsWith("⭐")) {
-        stats.stars++;
-      }
-
-      const content = m.content.trim();
-      const isStarOnly = content === "⭐" || content === "⭐️";
-      const isStarLink = content.startsWith("⭐") && content.includes("http");
-
-      for (const r of m.reactions.cache.values()) {
-        const users = await r.users.fetch();
-        users.forEach(u => {
-          if (u.bot) return;
-          reactedUsers.add(u.id);
-        });
-      }
-
-      if (isStarOnly) {
-        starUsers.add(m.author.id);
-        continue;
-      }
-
-      if (isStarLink) {
-        starLinkUsers.add(m.author.id);
-        participants.add(m.author.id);
-        continue;
-      }
-
       participants.add(m.author.id);
-    }
-
-    let total = participants.size;
-    let valid = 0;
-    let invalid = 0;
-
-    participants.forEach(id => {
-      if (starUsers.has(id)) return;
-      if (starLinkUsers.has(id)) return;
-
-      if (reactedUsers.has(id)) valid++;
-      else invalid++;
-    });
-
-    let winner = null;
-    let max = 0;
-
-    for (const m of sessionMessages) {
-      let count = 0;
-
-      for (const r of m.reactions.cache.values()) {
-        const users = await r.users.fetch();
-        count += users.filter(u => !u.bot && u.id !== m.author.id).size;
-      }
-
-      if (count > max) {
-        max = count;
-        winner = m.author;
-      }
-    }
-
-    if (winner) {
-      trophyUser = winner.id;
-      trophyExpire = Date.now() + 24 * 60 * 60 * 1000;
-
-      const stats = getUserStats(winner.id);
-      stats.trophies++;
     }
 
     await channel.send({
@@ -296,11 +224,7 @@ Pense à réagir aux liens des autres 🧡`
 
     await channel.send({
       content: `🛑 **SESSION TERMINÉE**
-👥 **${total} participants**
-⭐ ${starUsers.size + starLinkUsers.size}
-🏆 ${winner ? `<@${winner.id}>` : "Personne"}
-✅ ${valid} à jour
-❌ ${invalid} pas à jour`,
+👥 **${participants.size} participants**`,
       components: [getButtons()]
     });
 
