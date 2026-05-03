@@ -66,22 +66,15 @@ client.on("interactionCreate", async interaction => {
   }
 
   if (interaction.customId === "start") {
-
-    await interaction.deferReply({ ephemeral: true }); // ✅ FIX
-
+    await interaction.deferReply({ ephemeral: true });
     sessionActive = true;
-
     await interaction.editReply("🚀 Session lancée");
-
     runLoop(interaction.channel);
   }
 
   if (interaction.customId === "stop") {
-
-    await interaction.deferReply({ ephemeral: true }); // ✅ FIX
-
+    await interaction.deferReply({ ephemeral: true });
     sessionActive = false;
-
     await interaction.editReply("🛑 Session arrêtée");
   }
 });
@@ -122,19 +115,15 @@ client.on("messageCreate", async message => {
   if (pauseBetween) return message.delete();
   if (!sessionActive) return;
 
-  const urls = message.content.match(/https?:\/\/\S+/g);
-  if (!urls) return;
-
   const content = message.content.trim();
 
-// autorise seulement : lien OU ⭐ + lien OU 🏆 + lien
-const regex = /^(⭐|🏆|🎉)?\s*https?:\/\/(www\.)?leboncoin\.fr\/.+$/;
+  const regex = /^(⭐|🏆|🎉)?\s*https?:\/\/(www\.)?leboncoin\.fr\/\S+$/;
 
-if (!regex.test(content)) {
-  return message.delete();
-}
+  if (!regex.test(content)) {
+    return message.delete();
+  }
 
-const cleanLink = content.replace(/^(⭐|🏆)?\s*/, "");
+  const cleanLink = content.replace(/^(⭐|🏆|🎉)?\s*/, "");
 
   if (sessionMessages.some(m => m.content.includes(cleanLink))) {
     return message.delete();
@@ -142,12 +131,11 @@ const cleanLink = content.replace(/^(⭐|🏆)?\s*/, "");
 
   const stats = getUserStats(message.author.id);
 
-  const isTrophyLink = message.content.startsWith("🏆");
-  const isStarLink = message.content.startsWith("⭐");
+  const isTrophyLink = content.startsWith("🏆");
+  const isStarLink = content.startsWith("⭐");
 
   let userLinks = sessionMessages.filter(m => m.author.id === message.author.id).length;
 
-  // ⭐ lien sans rendre
   if (isStarLink) {
     if (stats.stars > 0) {
       stats.stars--;
@@ -157,7 +145,6 @@ const cleanLink = content.replace(/^(⭐|🏆)?\s*/, "");
     }
   }
 
-  // 🎉 deuxième lien
   if (userLinks >= 1 && !isStarLink && !isTrophyLink) {
     if (stats.trophies > 0) {
       stats.trophies--;
@@ -175,8 +162,7 @@ const cleanLink = content.replace(/^(⭐|🏆)?\s*/, "");
     if (userLinks >= 2) return message.delete();
   }
 
-  // ✅ FIX AVATAR (on garde le message)
-  if (message.content !== cleanLink && !isTrophyLink && !isStarLink) {
+  if (content !== cleanLink && !isTrophyLink && !isStarLink) {
     sessionMessages.push(message);
     return;
   }
@@ -184,7 +170,6 @@ const cleanLink = content.replace(/^(⭐|🏆)?\s*/, "");
   sessionMessages.push(message);
 });
 
-// 🔁 LOOP
 async function runLoop(channel) {
   if (sessionRunning) return;
   sessionRunning = true;
