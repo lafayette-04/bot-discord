@@ -161,7 +161,9 @@ client.on("messageCreate", async message => {
   }
 
   if (message.content !== cleanLink && !isTrophyLink && !isStarLink) {
-    await message.delete();
+  sessionMessages.push(message);
+  return;
+}
     const newMsg = await message.channel.send(cleanLink);
     sessionMessages.push(newMsg);
     return;
