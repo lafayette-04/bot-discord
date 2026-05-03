@@ -31,6 +31,8 @@ let pauseBetween = false;
 
 // 📊 STATS
 let userStats = {};
+
+// ⚠️ WARN / BAN
 let userWarnings = {};
 let userBlocked = {};
 
@@ -113,13 +115,17 @@ client.on("messageCreate", async message => {
   if (message.channel.id !== CHANNEL_ID) return;
 
   if (pauseBetween) return message.delete();
+
   if (!sessionActive) return;
 
   const urls = message.content.match(/https?:\/\/\S+/g);
   if (!urls) return;
 
   const leboncoinLinks = urls.filter(url => url.includes("leboncoin.fr"));
-  if (leboncoinLinks.length === 0) return message.delete();
+
+  if (leboncoinLinks.length === 0) {
+    return message.delete();
+  }
 
   const cleanLink = leboncoinLinks[0];
 
@@ -127,46 +133,19 @@ client.on("messageCreate", async message => {
     return message.delete();
   }
 
-  const stats = getUserStats(message.author.id);
-
   const isTrophyLink = message.content.startsWith("🏆");
-  const isStarLink = message.content.startsWith("⭐");
 
   let userLinks = sessionMessages.filter(m => m.author.id === message.author.id).length;
-
-  // 🎉 BONUS (2e lien)
-  if (userLinks >= 1 && !isTrophyLink && !isStarLink) {
-    if (stats.trophies > 0) {
-      stats.trophies--;
-    } else {
-      try {
-        await message.author.send("❌ Vous n’avez pas de bonus 🎉");
-      } catch {}
-      return message.delete();
-    }
-  }
-
-  // ⭐ LIEN SANS RENDRE
-  if (isStarLink) {
-    if (stats.stars > 0) {
-      stats.stars--;
-    } else {
-      try {
-        await message.author.send("❌ Vous n’avez pas de lien sans rendre ⭐");
-      } catch {}
-      return message.delete();
-    }
-  }
 
   if (message.author.id === trophyUser && Date.now() < trophyExpire) {
     if (userLinks === 1 && !isTrophyLink) return message.delete();
     if (userLinks >= 2) return message.delete();
   } else {
     if (isTrophyLink) return message.delete();
-    if (userLinks >= 1 && !isStarLink) return message.delete();
+    if (userLinks >= 1) return message.delete();
   }
 
-  if (message.content !== cleanLink && !message.content.startsWith("🏆") && !message.content.startsWith("⭐")) {
+  if (message.content !== cleanLink && !message.content.startsWith("🏆")) {
     await message.delete();
     const newMsg = await message.channel.send(cleanLink);
     sessionMessages.push(newMsg);
@@ -176,7 +155,6 @@ client.on("messageCreate", async message => {
   sessionMessages.push(message);
 });
 
-// 🔁 LOOP (INCHANGÉ)
 async function runLoop(channel) {
   if (sessionRunning) return;
   sessionRunning = true;
@@ -234,6 +212,7 @@ Pense à réagir aux liens des autres 🧡`
 
       for (const r of m.reactions.cache.values()) {
         const users = await r.users.fetch();
+
         users.forEach(u => {
           if (u.bot) return;
           reactedUsers.add(u.id);
@@ -260,7 +239,11 @@ Pense à réagir aux liens des autres 🧡`
 
     participants.forEach(id => {
       if (starUsers.has(id)) return;
-      if (starLinkUsers.has(id)) return;
+
+      if (starLinkUsers.has(id)) {
+        valid++;
+        return;
+      }
 
       if (reactedUsers.has(id)) valid++;
       else invalid++;
@@ -290,6 +273,74 @@ Pense à réagir aux liens des autres 🧡`
       const stats = getUserStats(winner.id);
       stats.trophies++;
     }
+
+    // 🔥 DM + WARNING
+    const sessionTime = new Date().toLocaleTimeString("fr-FR", { hour: '2-digit', minute: '2-digit' });
+
+    let userMissing = {};
+
+    for (const userId of participants) {
+
+      if (starUsers.has(userId)) continue;
+      if (starLinkUsers.has(userId)) continue;
+
+      let missingLinks = [];
+
+      for (const m of sessionMessages) {
+
+        if (m.author.id === userId) continue;
+
+        const reacted = m.reactions.cache.some(r =>
+          r.users.cache.has(userId)
+        );
+
+        if (!reacted) {
+          missingLinks.push(m.url);
+        }
+      }
+
+      if (missingLinks.length === sessionMessages.length - 1) {
+        userMissing[userId] = missingLinks;
+      }
+    }
+
+    setTimeout(async () => {
+
+      for (const userId in userMissing) {
+
+        try {
+          const user = await client.users.fetch(userId);
+
+          await user.send(`👀 Tu n'es pas à jour sur la session **Session article** de ${sessionTime}.
+
+Il te manque des réactions sur certains liens, mets-toi à jour, sinon tu auras un avertissement dans 10 minutes.
+
+Liste des liens manquants :
+${userMissing[userId].join("\n")}`);
+
+          setTimeout(async () => {
+
+            userWarnings[userId] = (userWarnings[userId] || 0) + 1;
+
+            await user.send(`⚠️ **Avertissement**
+
+Tu n’étais toujours pas à jour 10 min après la fin de la session **Session article**.
+
+Avertissements ${userWarnings[userId]} sur 3.`);
+
+            if (userWarnings[userId] >= 3) {
+
+              userBlocked[userId] = Date.now() + (24 * 60 * 60 * 1000);
+
+              await user.send(`⛔ Tu es bloqué(e) dans #🔥boost pendant 24h car tu as atteint 3 avertissements.`);
+            }
+
+          }, 10 * 60 * 1000);
+
+        } catch {}
+      }
+
+    }, 2 * 60 * 1000);
 
     await channel.send({
       files: ["https://i.ibb.co/j9mGMjDm/AE44-C3-D4-5-F52-4-D45-AE27-409-BDF00-D67-B.png"]
